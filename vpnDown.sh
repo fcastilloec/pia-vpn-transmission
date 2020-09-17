@@ -29,16 +29,16 @@ port="62021" # default port when not using VPN
 
 # Kills transmission if running. Prevents race conditions when writing to the settings file
 if systemctl -q is-active transmission-daemon.service; then
-  if [ -n "$DEBUG" ]; then printf "%s: transmission-daemon is active\n" "$me"; fi
+  if [[ -n $DEBUG ]]; then printf "%s: transmission-daemon is active\n" "$me"; fi
   set +e; systemctl stop transmission-daemon.service; set -e
 fi
 
 # Changes port back to its default
-if [ -f "$settings" ]; then
+if [[ -f $settings ]]; then
   vpnPort=$(jq '."peer-port"' $settings) # retrieve port from settings file
-  if [ -n "$DEBUG" ]; then printf "%s: VPN port inside Transmission settings file: %d\n" "$me" "$vpnPort"; fi
+  if [[ -n $DEBUG ]]; then printf "%s: VPN port inside Transmission settings file: %d\n" "$me" "$vpnPort"; fi
 
-  if [ "$vpnPort" != "$port" ]; then
+  if [[ $vpnPort != "$port" ]]; then
     tempSettings=$(jq '."peer-port"'="$port" $settings)
     printf "%s" "$tempSettings" > $settings
 

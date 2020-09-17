@@ -66,7 +66,7 @@ function printHelp {
 
 function vpnStop { # Stops the VPN if it's running
   if ip l show tun0 > /dev/null 2>&1; then
-    if [ -n "$DEBUG" ]; then
+    if [[ -n $DEBUG ]]; then
       printf "%s: " "$me"; sudo killall openvpn
     else
       sudo killall openvpn > /dev/null 2>&1
@@ -95,7 +95,7 @@ while (( "$#" )); do
 done
 
 # Checks for correct amount of parameters and assignes them
-if [ ${#PARAMS[@]} -gt 2 ]; then printf "\e[31m%s\e[0m\n" "A max of two parameters can be passed"; exit 1; fi
+if (( ${#PARAMS[@]} > 2 )); then printf "\e[31m%s\e[0m\n" "A max of two parameters can be passed"; exit 1; fi
 OPTIONS=${PARAMS[0]}
 SERVER=${PARAMS[1]}
 
@@ -110,7 +110,7 @@ case $SERVER in
   *) printf "\e[31m%s\e[0m\n" "Unrecognized server"; exit 1;;
 esac
 
-if [ -n "$DEBUG" ]; then
+if [[ -n $DEBUG ]]; then
   printf "%s: provided OPTIONS: %s\n" "$me" "$OPTIONS"
   printf "%s: provided SERVER: %s\n" "$me" "$SERVER"
 fi
@@ -121,14 +121,14 @@ case $OPTIONS in
     # Check if we should stop any existing connections
     if ip l show tun0 > /dev/null 2>&1; then
       read -r -n 1 -p "Do you want to stop the current connection before starting a new one? [Y/n] " stop
-      [ -n "$stop" ] && printf "\n" # prints an emtpy line only when non-empty input
+      [[ -n $stop ]] && printf "\n" # prints an emtpy line only when non-empty input
       stop=${stop:-y} # if empty, replace with 'y'
 
-      if [ "$stop" == "y" ]; then vpnStop; else exit 0; fi
+      if [[ $stop == "y" ]]; then vpnStop; else exit 0; fi
     fi
 
     IP=$(dig TXT +short o-o.myaddr.l.google.com @ns1.google.com | awk -F'"' '{ print $2}') # Get IP before VPN
-    if [ -n "$DEBUG" ]; then printf "%s: IP before VPN: %s\n" "$me" "$IP"; fi
+    if [[ -n $DEBUG ]]; then printf "%s: IP before VPN: %s\n" "$me" "$IP"; fi
     VPN_IP="$IP" # Initiate the variable for while loop
 
     # OpenVPN arguments
@@ -141,21 +141,21 @@ case $OPTIONS in
       --tls-exit \
       --hand-window 90 # increse TLS handshake window from 60s
     )
-    if [ -n "$DEBUG" ]; then OPENVPN_ARGS+=(--log "$OPENVPN_LOG"); fi # Add logging file if debuggind
+    if [[ -n $DEBUG ]]; then OPENVPN_ARGS+=(--log "$OPENVPN_LOG"); fi # Add logging file if debuggind
     sudo openvpn "${OPENVPN_ARGS[@]}" # Starts OpenVPN as daemon
-    if [ -f $OPENVPN_LOG ]; then sudo chmod +r "$OPENVPN_LOG"; fi # Make sure the logging file is readable by everybody
+    if [[ -f $OPENVPN_LOG ]]; then sudo chmod +r "$OPENVPN_LOG"; fi # Make sure the logging file is readable by everybody
 
     # Check and wait for new IP
     printf "Connected. Checking for new IP address....\n"
     count=1 # Doesn't let the while loop run forever
-    while [ "$VPN_IP" == "$IP" ] && (( "$count" <= "$MAX_WAIT" )); do
+    while [[ $VPN_IP == "$IP" ]] && (( count <= MAX_WAIT )); do
       sleep $SEC # Wait before checking for new IP
       VPN_IP=$(dig TXT +short o-o.myaddr.l.google.com @ns1.google.com | awk -F'"' '{ print $2}') # Get IP after VPN
-      if [ -n "$DEBUG" ]; then printf "%s: %d check for new IP\n" "$me" "$count"; fi
+      if [[ -n $DEBUG ]]; then printf "%s: %d check for new IP\n" "$me" "$count"; fi
       (( count++ ))
     done
 
-    if [ "$VPN_IP" == "$IP" ]; then
+    if [[ $VPN_IP == "$IP" ]]; then
       printf "You're IP hasn't changed after %d seconds. Stopping...\n" $((MAX_WAIT * SEC))
       vpnStop
     else
@@ -164,13 +164,13 @@ case $OPTIONS in
       # Make sure we can forward the port
       # Currently only current-gen servers are supported. US servers aren't supported
       # If running with option "connect", no forwarding will be performed
-      if [[ "$OPTIONS" == 'start' && $TYPE == "current" && "$SERVER" != "us" ]]; then
-        if [ -n "$DEBUG" ]; then printf "%s: Forwarding port\n" "$me"; fi
+      if [[ $OPTIONS == 'start' && $TYPE == "current" && $SERVER != "us" ]]; then
+        if [[ -n $DEBUG ]]; then printf "%s: Forwarding port\n" "$me"; fi
         if ! DEBUG="$DEBUG" vpnUp.sh ; then
           printf "Port forwarding didn't succeed, running 'vpnDown' script and stopping VPN\n"
           vpnStop
         fi
-      elif [ -n "$TRANSMSISSION" ]; then
+      elif [[ -n $TRANSMSISSION ]]; then
         printf "Starting Transmission without port-forwarding support\n"
         sudo systemctl start transmission-daemon.service
       fi

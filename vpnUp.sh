@@ -33,7 +33,7 @@ public_ip=$(dig TXT +short o-o.myaddr.l.google.com @ns1.google.com | awk -F'"' '
 saved_port=$(cat $port_config) # Retrieves the saved port to check if it's already being used
 
 
-if [ -n "$DEBUG" ]; then
+if [[ -n $DEBUG ]]; then
   printf "%s: public IP: %s\n" "$me" "$public_ip"
   printf "%s: saved port is %s\n" "$me" "$saved_port"
 fi
@@ -41,15 +41,15 @@ fi
 # Retrieves the port based on https://www.privateinternetaccess.com/forum/discussion/23431/new-pia-port-forwarding-api
 json_port=$(curl "http://209.222.18.222:2000/?client_id=$client_id" 2>/dev/null || printf "")
 
-if [ -n "$DEBUG" ]; then printf "%s: received json: %s\n" "$me" "$json_port"; fi
+if [[ -n $DEBUG ]]; then printf "%s: received json: %s\n" "$me" "$json_port"; fi
 
 # Check that we received a port.
-if [ -n "$json_port" ]; then
+if [[ -n $json_port ]]; then
   vpnPort=$(printf "%s" "$json_port" | jq '."port"') # Use jq to get the port number
-  if [ -n "$DEBUG" ]; then printf "%s: the parsed received port is %s\n" "$me" "$vpnPort"; fi
-elif [ -n "$saved_port" ]; then # Didn't receive a port ($json_port), so let's use the saved one
+  if [[ -n $DEBUG ]]; then printf "%s: the parsed received port is %s\n" "$me" "$vpnPort"; fi
+elif [[ -n $saved_port ]]; then # Didn't receive a port ($json_port), so let's use the saved one
   if nmap -p "$saved_port" "$public_ip" | grep -q 'filtered' > /dev/null 2>&1; then
-    if [ -n "$DEBUG" ]; then
+    if [[ -n $DEBUG ]]; then
       printf "%s: port forwarding is already activated on this connection, using port %s" "$me" "$saved_port"
     fi
     vpnPort=$saved_port
@@ -60,15 +60,15 @@ elif [ -n "$saved_port" ]; then # Didn't receive a port ($json_port), so let's u
   fi
 else # Didn't receive a port and there's no old one saved.
   # count=1 # Doesn't let the next while loop, run forever
-  # while [ -z "$json_port" ] && (( "$count" <= 20 )); do
+  # while [[ -z $json_port ]] && (( count <= 20 )); do
   #   sleep 5 # Wait before checking for new IP
   #   json_port=$(curl "http://209.222.18.222:2000/?client_id=$client_id" 2>/dev/null || printf "")
   #   vpnPort=$(printf "%s" "$json_port" | jq '."port"') # Use jq to get the port number
-  #   if [ -n "$DEBUG" ]; then printf "%s: %d check for forwarding port\n" "$me" "$count"; fi
-  #   if [ -n "$DEBUG" ]; then printf "%s: the parsed received port is %s\n" "$me" "$vpnPort"; fi
+  #   if [[ -n $DEBUG ]]; then printf "%s: %d check for forwarding port\n" "$me" "$count"; fi
+  #   if [[ -n $DEBUG ]]; then printf "%s: the parsed received port is %s\n" "$me" "$vpnPort"; fi
   #   (( count++ ))
   # done
-  # if [ -z "$json_port" ]; then printf "Cannot retrieve port and none was previously saved\n"; exit 1; fi
+  # if [[ -z $json_port ]]; then printf "Cannot retrieve port and none was previously saved\n"; exit 1; fi
   printf "Cannot retrieve port and none was previously saved\n"; exit 1
 fi
 
@@ -77,11 +77,11 @@ printf "%s" "$vpnPort" > $port_config
 
 # Stop transmission-daemon if it's active
 if systemctl -q is-active transmission-daemon.service; then
-  if [ -n "$DEBUG" ]; then printf "%s: transmission-daemon is active\n" "$me"; fi
+  if [[ -n $DEBUG ]]; then printf "%s: transmission-daemon is active\n" "$me"; fi
   set +e; systemctl stop transmission-daemon.service; set -e
 fi
 
-if [ -f "$settings" ]; then
+if [[ -f $settings ]]; then
   tempSettings=$(jq '."peer-port"'="$vpnPort" $settings)
   printf "%s" "$tempSettings" > $settings
 
