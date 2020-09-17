@@ -18,24 +18,12 @@ me=$(basename "$0") # name of this script use for debugging
 
 ################ CHECKS ################
 # Check if running as root/sudo
-if [ ${EUID:-$(id -u)} -eq 0 ]; then
-  if [ -n "$DEBUG" ]; then printf "%s: running as sudo\n" "$me"; fi
-else
-  if [ -n "$DEBUG" ]; then printf "%s: NOT running as sudo\n" "$me"; fi
-  exec sudo DEBUG="$DEBUG" "$0" "$@"
-fi
+[ ${EUID:-$(id -u)} -eq 0 ] || exec sudo DEBUG="$DEBUG" "$0" "$@"
 
 # Check if JQ is installed, needed to handle JSON
-if ! command -v jq > /dev/null 2>&1; then
-  printf "JQ not installed. Please install before proceeding\n"
-  exit 3
-fi
-
+if ! command -v jq > /dev/null 2>&1; then echo "JQ not installed. Please install before proceeding"; exit 3; fi
 # Check if nmap is installed, needed to check for ports
-if ! command -v nmap > /dev/null 2>&1; then
-  printf "NMAP not installed. Please install before proceeding\n"
-  exit 3
-fi
+if ! command -v nmap > /dev/null 2>&1; then echo "NMAP not installed. Please install before proceeding"; exit 3; fi
 ########################################
 
 settings="/home/felipe/.config/transmission/settings.json"
@@ -93,7 +81,7 @@ if systemctl -q is-active transmission-daemon.service; then
   set +e; systemctl stop transmission-daemon.service; set -e
 fi
 
-if [ -e "$settings" ]; then
+if [ -f "$settings" ]; then
   tempSettings=$(jq '."peer-port"'="$vpnPort" $settings)
   printf "%s" "$tempSettings" > $settings
 
