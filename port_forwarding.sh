@@ -28,15 +28,7 @@ function get_signature_and_payload() {
     echo "The payload_and_signature variable does not contain an OK status."; exit 1
   fi
 
-  echo "$payload_and_signature"
-
-  # Save variables to file
-  # {
-  #   printf "%s\n" "$PAYLOAD"
-  #   printf "%s\n" "$SIGNATURE"
-  #   printf "%s\n" "$PORT"
-  #   printf "%s\n" "$TOKEN_EXPIRY"
-  # } > "$SIGN_FILE"
+  echo "$payload_and_signature" | tee "$PAYLOAD_FILE"
 }
 
 ############### CHECKS ###############
@@ -90,7 +82,7 @@ BINDING="PF_HOSTNAME=$PF_HOSTNAME\
  SIGNATURE=$signature\
  $BIND_SCRIPT"
 
-eval "$BINDING" || exit 20 # runs the command store in BINDING
+eval "$BINDING" > /dev/null || exit 20 # runs the command store in BINDING
 
 # Set crontab to keep binding the port every BIND_INTERVAL minutes
 minutes=$(seq -s , $(( $(date +"%M") % BIND_INTERVAL )) $BIND_INTERVAL 60) # Calculate 15min from current time
