@@ -49,6 +49,6 @@ tempSettings=$(jq '."peer-port"'="$DEFAULT_PORT" $SETTINGS)
 printf "%s" "$tempSettings" > $SETTINGS
 
 # deletes UFW rule of VPN port
-ufw delete allow "$PORT/tcp"
+ufw delete allow "$PORT/tcp" > /dev/null
 
 echo "Port rule back to default value"

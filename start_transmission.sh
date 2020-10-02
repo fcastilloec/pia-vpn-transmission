@@ -42,7 +42,7 @@ tempSettings=$(jq '."peer-port"'="$PORT" $SETTINGS)
 printf "%s" "$tempSettings" > $SETTINGS
 
 # Adds the port to UFW
-ufw allow "$PORT/tcp"
+ufw allow "$PORT/tcp" > /dev/null
 echo "VPN port forwarded, port $PORT is being used"
 
 # Re-start transmission
