@@ -92,10 +92,11 @@ fi
 # Stop the script if PIA_PF is not set to "true".
 [[ "$PIA_PF" != true ]] && exit
 
-# Start port forwarding
+# Start port forwarding and make sure it runs under my user
 [[ -n $DEBUG ]] && echo "Starting port forwarding"
-DEBUG=$DEBUG \
-  PIA_TOKEN=$WG_TOKEN \
+sudo -u felipe \
+  DEBUG="$DEBUG" \
+  PIA_TOKEN="$WG_TOKEN" \
   PF_GATEWAY="$(echo "$wireguard_json" | jq -r '.server_vip')" \
   PF_HOSTNAME="$WG_HOSTNAME" \
   $PORT_SCRIPT || exit 20
