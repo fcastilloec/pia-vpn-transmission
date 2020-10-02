@@ -55,7 +55,7 @@ check_tool jq jq
 
 # Check if the mandatory environment variables are set.
 if [[ ! $SERVER_ID || ! $AUTH_FILE ]]; then
-  echo This script requires 2 env vars:
+  echo "$(basename "$0") script requires 2 env vars:"
   echo "SERVER_ID - id of the server you want to connect to"
   echo "AUTH_FILE - filename that contains username and password (in that order, one per line)"
   echo "PIA_PF    - [OPTIONAL] enable port forwarding (true by default)"

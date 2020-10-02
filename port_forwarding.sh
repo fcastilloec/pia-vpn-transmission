@@ -34,7 +34,7 @@ function get_signature_and_payload() {
 ############### CHECKS ###############
 # Check if the mandatory environment variables are set.
 if [[ -z $PF_GATEWAY || -z $PIA_TOKEN || -z $PF_HOSTNAME ]]; then
-  echo This script requires 3 env vars:
+  echo "$(basename "$0") script requires 3 env vars:"
   echo "PF_GATEWAY  - the IP of your gateway"
   echo "PF_HOSTNAME - name of the host used for SSL/TLS certificate verification"
   echo "PIA_TOKEN   - the token you use to connect to the vpn services"

@@ -29,7 +29,7 @@ check_tool jq jq
 
 # Check if the mandatory environment variables are set.
 if [[ ! $WG_SERVER_IP || ! $WG_HOSTNAME || ! $WG_TOKEN ]]; then
-  echo This script requires 3 env vars:
+  echo "$(basename "$0") script requires 3 env vars:"
   echo "WG_SERVER_IP - IP that you want to connect to"
   echo "WG_HOSTNAME  - name of the server, required for ssl"
   echo "WG_TOKEN     - your authentication token"
