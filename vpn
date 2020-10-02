@@ -1,91 +1,65 @@
 #!/usr/bin/env bash
 
 set -eE -o functrace
-
 failure() {
-  local lineno=$1
-  local msg=$2
-  echo "$me: failed at $lineno: $msg"
+  local lineno=$1; local msg=$2
+  echo "$(basename "$0"): failed at $lineno: $msg"
 }
 trap 'failure ${LINENO} "$BASH_COMMAND"' ERR
 
-############### CHECK FOR REQUIRED PACKAGES ###############
-if ! command -v jq > /dev/null 2>&1; then echo "JQ not installed. Please install before proceeding"; exit 3; fi
-if ! command -v dig > /dev/null 2>&1; then echo "DIG not installed. Please install before proceeding"; exit 3; fi
-if ! command -v openvpn > /dev/null 2>&1; then echo "OPENVPN not installed. Please install before proceeding"; exit 3; fi
-if ! command -v mmdbinspect > /dev/null 2>&1; then echo "MMDBINSPECT not installed. Please install before proceeding"; exit 3; fi
+############### FUNCTIONS ###############
+# Checks if the required tools have been installed
+function check_tool() {
+  local cmd=$1; local package=$2
+  if ! command -v "$cmd" &>/dev/null; then
+    >&2 echo "$cmd could not be found"; echo "Please install $package"; exit 1
+  fi
+}
 
-# Comment next lines to improve speed, if transmission-daemon is already installed
-# if ! systemctl list-unit-files --type service | grep -q transmission-daemon; then
-#   echo "TRANSMISSION-DAEMON not installed. Please install before proceeding"; exit 3;
-# fi
-###########################################################
-
-# Set default variables
-SEC=5 # seconds to wait before checking for updated IP
-MAX_WAIT=12 # It'll wait for SEC times this value, i.e. SEC=5 MAX_WAIT=12, will wait for 1 minute
-TYPE="current" # The default type of server to use (current or nextgen)
-AUTH="/home/felipe/openvpn/passwd" # PIA username and password
-GEOIP="/home/felipe/.config/geoip/database/GeoLite2-City.mmdb" # database for status info
-SERVER_DIR="/home/felipe/openvpn" # directory containing openvpn files, it has a current and nextget directories inside
-OPENVPN_LOG="/home/felipe/openvpn.log"
-me=$(basename "$0") # name of this script. Use for debugging
-
-# OpenVPN files (some have been renamed from PIA's default, i.e. nextget-ontario is nextgen-ca_toronto)
-BC_SERVER="ca_vancouver-aes-128-cbc-udp-dns.ovpn"
-ON_SERVER="ca_toronto-aes-128-cbc-udp-dns.ovpn"
-US_SERVER="us_sea-aes-128-cbc-udp-dns.ovpn"
-FR_SERVER="france-aes-128-cbc-udp-dns.ovpn"
-BER_SERVER="de_berlin-aes-128-cbc-udp-dns.ovpn"
-FRAK_SERVER="de-frankfurt-aes-128-cbc-udp-dns.ovpn"
-
-################ FUNCTIONS ################
-function printHelp {
+# Prints the help message
+function printHelp() {
   printf "Connects to a Private VPN server\n\n"
   printf "Usage: vpn [OPTIONS] [SERVER] [FLAGS]\n"
   printf "OPTIONS have to come before SERVER. FLAGS can be passed anywhere.\n"
   printf "It reads the username and password, for vpn authentication, from %s\n\n" "$AUTH"
   printf "OPTIONS:\n"
   printf "  %-7s   Connects to the specified server (or default one) with port forwarding if supported\n" "start"
-  printf "  %-7s   Connects to the specified server (or default one) WITHOUT port forwarding\n" "connect"
-  printf "  %-7s   Stops openvpn is it's running\n" "stop"
-  printf "  %-7s   (default) Check if openvpn is running or not\n" "status"
+  printf "  %-7s   Disconnects VPN\n" "stop"
+  printf "  %-7s   (default) Check if VPN is connected\n" "status"
   printf "SERVER:\n"
-  printf "  %-7s   Vancouver, CA\n" "bc"
-  printf "  %-7s   Toronto, CA\n" "on"
-  printf "  %-7s   Seattle, WA\n" "us"
-  printf "  %-7s   France\n" "fr"
-  printf "  %-7s   (default) Berlin, Germany\n" "be"
-  printf "  %-7s   Frankfurt, Germany\n" "fk"
+  printf "  %-7s   (default) CA Vancouver\n" "van"
+  printf "  %-7s   CA Ontario\n" "ont"
+  printf "  %-7s   CA Montreal\n" "mtl"
+  printf "  %-7s   CA Toronto\n" "tor"
+  printf "  %-7s   DE Berlin\n" "ber"
+  printf "  %-7s   DE Frankfurt\n" "frk"
+  printf "  %-7s   France\n" "fra"
+  printf "  %-7s   US Seattle\n" "sea"
   printf "FLAGS:\n"
-  printf "  %-7s   (default) Connect to PIA current servers (support for Port Forwarding)\n" "-c"
-  printf "  %-7s   Connect to PIA Nextgen servers (NO port forwarding)\n" "-n"
-  printf "  %-7s   Start Transmission WITHOUT port-forwarding support\n" "-t"
+  printf "  %-7s   Connects WITHOUT port forwarding\n" "-n"
   printf "  %-7s   Verbose output\n" "-v"
 }
 
-function vpnStop { # Stops the VPN if it's running
-  if ip l show tun0 > /dev/null 2>&1; then
-    if [[ -n $DEBUG ]]; then
-      printf "%s: " "$me"; sudo killall openvpn
-    else
-      sudo killall openvpn > /dev/null 2>&1
-    fi
-    printf "OpenVPN was stopped\n"
-  fi
+# Stops the VPN
+function vpnStop() {
+  if ! ip link show pia > /dev/null 2>&1; then echo "Nothing to stop"; exit; fi
 
-  DEBUG="$DEBUG" vpnDown.sh # Get to default settings for transmission and ufw
+  sudo wg-quick down pia > /dev/null 2>&1
+  echo "VPN disconnected"
+  DEBUG=$DEBUG $TRANSMISSION_STOP_SCRIPT
 }
-###########################################
+
+############### CHECKS ###############
+check_tool jq jq
+check_tool dig dig
+check_tool mmdbinspect mmdbinspect
 
 # Analyze script options
 while (( "$#" )); do
   case "$1" in
     -h|--help) printHelp; exit;;
-    -c) TYPE="current"; shift;;
-    -n) TYPE="nextgen"; shift;;
     -v) DEBUG=true; shift;;
-    -t) TRANSMSISSION=true; shift;;
+    -n) NOT_FORWARD=true; shift;;
     -*) # unsupported flags
       printf "\e[31m%s%s\e[0m\n" "Error: Unsupported flag " "$1"
       printHelp; exit 1;;
@@ -99,94 +73,90 @@ if (( ${#PARAMS[@]} > 2 )); then printf "\e[31m%s\e[0m\n" "A max of two paramete
 OPTIONS=${PARAMS[0]}
 SERVER=${PARAMS[1]}
 
-# Assigns the correct City and OpenVPN file
+if [[ -n $DEBUG ]]; then
+  echo "OPTIONS: $OPTIONS"
+  echo "SERVER: $SERVER"
+fi
+
+############### VARIABLES ###############
+WAIT_SECONDS=1 # seconds to wait before checking for updated IP
+MAX_WAIT=12 # It'll wait for SEC times this value, i.e. SEC=5 MAX_WAIT=12, will wait for 1 minute
+GEOIP=/home/felipe/.config/geoip/database/GeoLite2-City.mmdb # database for status info
+AUTH_FILE=/home/felipe/.config/pia_vpn/passwd # PIA username and password
+
+# Necessary scripts
+SCRIPTS_DIR=/home/felipe/workspace/pia-vpn-transmission
+VPN_START_SCRIPT=$SCRIPTS_DIR/get_token.sh
+TRANSMISSION_START_SCRIPT=$SCRIPTS_DIR/start_transmission.sh
+TRANSMISSION_STOP_SCRIPT=$SCRIPTS_DIR/stop_transmission.sh
+
+# Check if port can/should be forwarded. Seattle doesn't support it
+if [[ $SERVER == "sea" || $NOT_FORWARD ]]; then
+  PIA_PF="false"
+else
+  PIA_PF="true"
+fi
+
+# Assigns the correct server ID
 case $SERVER in
-  bc) CITY="British Columbia, Canada"; SERVER_FILE="$BC_SERVER";;
-  on) CITY="Ontario, Canada"; SERVER_FILE="$ON_SERVER";;
-  us) CITY="Seattle, WA"; SERVER_FILE="$US_SERVER";;
-  fr) CITY="France"; SERVER_FILE="$FR_SERVER";;
-  be | "") CITY="Berlin, Germany"; SERVER_FILE="$BER_SERVER";;
-  fk) CITY="Frankfurt, Germany"; SERVER_FILE="$FRAK_SERVER";;
+  van | "") CITY="Vancouver, Canada"; SERVER_ID="ca_vancouver";;
+  ont) CITY="Ontario, Canada"; SERVER_ID="ca_ontario";;
+  mtl) CITY="Montreal, Canada"; SERVER_ID="ca";;
+  tor) CITY="Toronto, Canada"; SERVER_ID="ca_toronto";;
+  ber) CITY="Berlin, Germany"; SERVER_ID="ca_toronto";;
+  frk) CITY="Frankfurt, Germany"; SERVER_ID="de-frankfurt";;
+  fra) CITY="France"; SERVER_ID="france";;
+  sea) CITY="Seattle, US"; SERVER_ID="us_seattle";;
   *) printf "\e[31m%s\e[0m\n" "Unrecognized server"; exit 1;;
 esac
 
-if [[ -n $DEBUG ]]; then
-  printf "%s: provided OPTIONS: %s\n" "$me" "$OPTIONS"
-  printf "%s: provided SERVER: %s\n" "$me" "$SERVER"
-fi
-
-# Main script code
+###########################################
 case $OPTIONS in
-  start | connect)
+  start)
     # Check if we should stop any existing connections
-    if ip l show tun0 > /dev/null 2>&1; then
+    if ip link show pia > /dev/null 2>&1; then
       read -r -n 1 -p "Do you want to stop the current connection before starting a new one? [Y/n] " stop
       [[ -n $stop ]] && printf "\n" # prints an emtpy line only when non-empty input
       stop=${stop:-y} # if empty, replace with 'y'
-
       if [[ $stop == "y" ]]; then vpnStop; else exit 0; fi
     fi
 
     IP=$(dig TXT +short o-o.myaddr.l.google.com @ns1.google.com | awk -F'"' '{ print $2}') # Get IP before VPN
-    if [[ -n $DEBUG ]]; then printf "%s: IP before VPN: %s\n" "$me" "$IP"; fi
+    if [[ -n $DEBUG ]]; then echo "IP before VPN: $IP"; fi
     VPN_IP="$IP" # Initiate the variable for while loop
 
-    # OpenVPN arguments
-    # tls-exit is used for some servers that connect after multiple TLS attempts, which this script doesn't support
-    # hand-window is used to help some of the previous servers
-    OPENVPN_ARGS=(
-      --config "$SERVER_DIR/$TYPE/$TYPE-$SERVER_FILE" \
-      --auth-user-pass "$AUTH" \
-      --daemon \
-      --tls-exit \
-      --hand-window 90 # increse TLS handshake window from 60s
-    )
-    if [[ -n $DEBUG ]]; then OPENVPN_ARGS+=(--log "$OPENVPN_LOG"); fi # Add logging file if debuggind
-    sudo openvpn "${OPENVPN_ARGS[@]}" # Starts OpenVPN as daemon
-    if [[ -f $OPENVPN_LOG ]]; then sudo chmod +r "$OPENVPN_LOG"; fi # Make sure the logging file is readable by everybody
+    # Connects to the VPN
+    DEBUG=$DEBUG SERVER_ID=$SERVER_ID AUTH_FILE=$AUTH_FILE PIA_PF=$PIA_PF $VPN_START_SCRIPT
 
     # Check and wait for new IP
-    printf "Connected. Checking for new IP address....\n"
+    echo "Connected. Checking for new IP address...."
     count=1 # Doesn't let the while loop run forever
     while [[ $VPN_IP == "$IP" ]] && (( count <= MAX_WAIT )); do
-      sleep $SEC # Wait before checking for new IP
+      sleep $WAIT_SECONDS # Wait before checking for new IP
       VPN_IP=$(dig TXT +short o-o.myaddr.l.google.com @ns1.google.com | awk -F'"' '{ print $2}') # Get IP after VPN
-      if [[ -n $DEBUG ]]; then printf "%s: %d check for new IP\n" "$me" "$count"; fi
+      if [[ -n $DEBUG ]]; then printf "%d check for new IP\n" "$count"; fi
       (( count++ ))
     done
 
     if [[ $VPN_IP == "$IP" ]]; then
-      printf "You're IP hasn't changed after %d seconds. Stopping...\n" $((MAX_WAIT * SEC))
+      echo "You're IP hasn't changed after $((MAX_WAIT * SEC)) seconds. Disconnecting VPN..."
       vpnStop
-    else
-      printf "Connected to %s. Your new public IP is %s\n" "$CITY" "$VPN_IP"
-
-      # Make sure we can forward the port
-      # Currently only current-gen servers are supported. US servers aren't supported
-      # If running with option "connect", no forwarding will be performed
-      if [[ $OPTIONS == 'start' && $TYPE == "current" && $SERVER != "us" ]]; then
-        if [[ -n $DEBUG ]]; then printf "%s: Forwarding port\n" "$me"; fi
-        if ! DEBUG="$DEBUG" vpnUp.sh ; then
-          printf "Port forwarding didn't succeed, running 'vpnDown' script and stopping VPN\n"
-          vpnStop
-        fi
-      elif [[ -n $TRANSMSISSION ]]; then
-        printf "Starting Transmission without port-forwarding support\n"
-        sudo systemctl start transmission-daemon.service
-      fi
+      exit
     fi
+
+    echo "Connected to $CITY. Your new public IP is $VPN_IP"
+
+    # Starts Transmission if port forwarding is enabled
+    [[ $PIA_PF == "true" ]] && DEBUG=$DEBUG $TRANSMISSION_START_SCRIPT
     ;;
   stop)
     vpnStop
     ;;
   status | "")
-    if ip l show tun0 > /dev/null 2>&1; then
-      VPN_IP=$(dig TXT +short o-o.myaddr.l.google.com @ns1.google.com | awk -F'"' '{ print $2}')
-      LOCATION=$(mmdbinspect -db $GEOIP "$VPN_IP" | jq '.[].Records[].Record | .city.names.en + " "  + .subdivisions[].iso_code  + ", " + .country.names.en')
-      printf "OpenVPN is up.\nConnected to %s. Your public IP is %s\n" "$LOCATION" "$VPN_IP"
-    else
-      printf "OpenVPN is down\n"
-    fi
+    if ! ip link show pia > /dev/null 2>&1; then echo "VPN is disconnected"; exit; fi
+    VPN_IP=$(dig TXT +short o-o.myaddr.l.google.com @ns1.google.com | awk -F'"' '{ print $2}')
+    LOCATION=$(mmdbinspect -db $GEOIP "$VPN_IP" | jq '.[].Records[].Record | .city.names.en + " "  + .subdivisions[].iso_code  + ", " + .country.names.en')
+    echo "Connected to $LOCATION. Your public IP is $VPN_IP"
     ;;
   *)
     printHelp
