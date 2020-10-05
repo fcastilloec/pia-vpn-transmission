@@ -59,7 +59,7 @@ while (( "$#" )); do
   case "$1" in
     -h|--help) printHelp; exit;;
     -v) DEBUG=true; shift;;
-    -n) NOT_FORWARD=true; shift;;
+    -n) PIA_PF="false"; shift;;
     -*) # unsupported flags
       printf "\e[31m%s%s\e[0m\n" "Error: Unsupported flag " "$1"
       printHelp; exit 1;;
@@ -90,12 +90,8 @@ VPN_START_SCRIPT=$SCRIPTS_DIR/get_token.sh
 TRANSMISSION_START_SCRIPT=$SCRIPTS_DIR/start_transmission.sh
 TRANSMISSION_STOP_SCRIPT=$SCRIPTS_DIR/stop_transmission.sh
 
-# Check if port can/should be forwarded. Seattle doesn't support it
-if [[ $SERVER == "sea" || $NOT_FORWARD ]]; then
-  PIA_PF="false"
-else
-  PIA_PF="true"
-fi
+# Default to always forward port unless option to not do so was passed
+[[ $PIA_PF != "false" ]] && PIA_PF="true"
 
 # Assigns the correct server ID
 case $SERVER in

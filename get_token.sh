@@ -99,6 +99,7 @@ SERVER_META_IP="$(echo "$SERVER_DATA" | jq -r '.servers.meta[0].ip')"
 SERVER_META_HOSTNAME="$(echo "$SERVER_DATA" | jq -r '.servers.meta[0].cn')"
 SERVER_WG_IP="$(echo "$SERVER_DATA" | jq -r '.servers.wg[0].ip')"
 SERVER_WG_HOSTNAME="$(echo "$SERVER_DATA" | jq -r '.servers.wg[0].cn')"
+CAN_FORWARD="$(echo "$SERVER_DATA" | jq -r '.port_forward')"
 
 ############### TOKEN ###############
 # Check saved token if still valid, otherwise retrieve it
@@ -116,7 +117,8 @@ else
   TOKEN=$(get_auth_token)
 fi
 
-[[ -z "$PIA_PF" ]] && PIA_PF="true"
+[[ $CAN_FORWARD == "false" ]] && PIA_PF="false"
+[[ -n $DEBUG ]] && echo "Server $SERVER_ID has support for port forwarding: $CAN_FORWARD"
 
 # Connect to Wireguard server
 DEBUG=$DEBUG \
