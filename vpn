@@ -43,10 +43,10 @@ function printHelp() {
 # Stops the VPN
 function vpnStop() {
   if ! ip link show pia > /dev/null 2>&1; then echo "Nothing to stop"; exit; fi
-
-  sudo wg-quick down pia > /dev/null 2>&1
+  sudo wg-quick down pia > /dev/null 2>&1 # Stop VPN connection
+  set +e; crontab -u felipe -r > /dev/null 2>&1; set -e # Remove port binding script
   echo "VPN disconnected"
-  DEBUG=$DEBUG $TRANSMISSION_STOP_SCRIPT
+  DEBUG=$DEBUG $TRANSMISSION_STOP_SCRIPT # Stop Transmission
 }
 
 ############### CHECKS ###############
