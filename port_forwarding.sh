@@ -85,7 +85,7 @@ BINDING="PF_HOSTNAME=$PF_HOSTNAME\
 eval "$BINDING" > /dev/null || exit 20 # runs the command store in BINDING
 
 # Set crontab to keep binding the port every BIND_INTERVAL minutes
-minutes=$(seq -s , $(( $(date +"%M") % BIND_INTERVAL )) $BIND_INTERVAL 60) # Calculate 15min from current time
+minutes=$(seq -s , $(( $(date +"%M") % BIND_INTERVAL )) $BIND_INTERVAL 59) # Calculate 15min from current time
 echo "$minutes * * * * $BINDING >> $PORT_LOG 2>&1" | crontab -u felipe -
 
 true > $PORT_LOG # empties the log file, so the output is only for the current session
