@@ -123,7 +123,7 @@ fi
 # Connect to Wireguard server
 DEBUG=$DEBUG \
   PIA_PF=$PIA_PF \
-  WG_TOKEN=$TOKEN \
+  PIA_TOKEN=$TOKEN \
   WG_SERVER_IP=$SERVER_WG_IP \
   WG_HOSTNAME=$SERVER_WG_HOSTNAME \
   $CONNECT_SCRIPT || exit 20
