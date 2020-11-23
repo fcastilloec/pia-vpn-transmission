@@ -28,11 +28,11 @@ check_tool curl curl
 check_tool jq jq
 
 # Check if the mandatory environment variables are set.
-if [[ ! $WG_SERVER_IP || ! $WG_HOSTNAME || ! $WG_TOKEN ]]; then
+if [[ ! $WG_SERVER_IP || ! $WG_HOSTNAME || ! $PIA_TOKEN ]]; then
   echo "$(basename "$0") script requires 3 env vars:"
   echo "WG_SERVER_IP - IP that you want to connect to"
   echo "WG_HOSTNAME  - name of the server, required for ssl"
-  echo "WG_TOKEN     - your authentication token"
+  echo "PIA_TOKEN     - your authentication token"
   echo "PIA_PF       - [OPTIONAL] enable port forwarding (true by default)"
   exit 1
 fi
@@ -54,7 +54,7 @@ PUBLIC_KEY="$( echo "$PRIVATE_KEY" | wg pubkey)"
 wireguard_json="$(curl -s -G \
   --connect-to "$WG_HOSTNAME::$WG_SERVER_IP:" \
   --cacert "$CERT" \
-  --data-urlencode "pt=${WG_TOKEN}" \
+  --data-urlencode "pt=${PIA_TOKEN}" \
   --data-urlencode "pubkey=$PUBLIC_KEY" \
   "https://${WG_HOSTNAME}:1337/addKey" )"
 [[ -n $DEBUG ]] && echo "WireGuard response: $wireguard_json"
@@ -76,6 +76,7 @@ PrivateKey = $PRIVATE_KEY
 # DNS = $(echo "$wireguard_json" | jq -r '.dns_servers[0]')
 
 [Peer]
+PersistentKeepalive = 25
 PublicKey = $(echo "$wireguard_json" | jq -r '.server_key')
 AllowedIPs = 0.0.0.0/0
 Endpoint = ${WG_SERVER_IP}:$(echo "$wireguard_json" | jq -r '.server_port')
@@ -96,7 +97,7 @@ fi
 [[ -n $DEBUG ]] && echo "Starting port forwarding"
 sudo -u felipe \
   DEBUG="$DEBUG" \
-  PIA_TOKEN="$WG_TOKEN" \
+  PIA_TOKEN="$PIA_TOKEN" \
   PF_GATEWAY="$(echo "$wireguard_json" | jq -r '.server_vip')" \
   PF_HOSTNAME="$WG_HOSTNAME" \
   $PORT_SCRIPT || exit 20
