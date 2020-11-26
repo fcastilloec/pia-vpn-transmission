@@ -4,10 +4,10 @@
 # If port forwarding is enabled, it calls the script to start it.
 ###################################################################################
 
-set -eE -o functrace
+set -eE
 failure() {
   local lineno=$1; local msg=$2
-  echo "$(basename "$0"): failed at $lineno: $msg"
+  [[ "$-" =~ .*e.* ]] && echo "$(basename "$0"): failed at $lineno: $msg"
 }
 trap 'failure ${LINENO} "$BASH_COMMAND"' ERR
 
