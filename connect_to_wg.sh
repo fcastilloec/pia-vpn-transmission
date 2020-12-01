@@ -38,7 +38,7 @@ if [[ ! $WG_SERVER_IP || ! $WG_HOSTNAME || ! $PIA_TOKEN ]]; then
 fi
 
 # Check if running as root/sudo
-[ ${EUID:-$(id -u)} -eq 0 ] || exec sudo -E "$0" "$@"
+[ ${EUID:-$(id -u)} -eq 0 ] || exec sudo -E "$(readlink -f "$0")" "$@"
 
 ############### VARIABLES ###############
 # Create ephemeral wireguard keys, that we don't need to save to disk.
