@@ -27,7 +27,7 @@ if [[ ! -f $SETTINGS ]]; then
 fi
 
 # Check if running as root/sudo
-[ ${EUID:-$(id -u)} -eq 0 ] || exec sudo -E "$0" "$@"
+[ ${EUID:-$(id -u)} -eq 0 ] || exec sudo -E "$(readlink -f "$0")" "$@"
 
 ##########################################
 # Stop transmission-daemon if it's active
