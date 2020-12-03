@@ -6,7 +6,7 @@
 set -eE
 failure() {
   local lineno=$1; local msg=$2
-  [[ "$-" =~ .*e.* ]] && echo "$(basename "$0"): failed at $lineno: $msg"
+  echo "$(basename "$0"): failed at $lineno: $msg"
 }
 trap 'failure ${LINENO} "$BASH_COMMAND"' ERR
 
@@ -29,25 +29,25 @@ fi
 
 ##########################################
 # Stop transmission-daemon if it's active
-if systemctl -q is-active transmission-daemon.service; then
-  if [[ -n $DEBUG ]]; then echo "transmission-daemon is active. Stopping..."; fi
-  set +e; systemctl stop transmission-daemon.service; set -e
+if pidof transmission-daemon > /dev/null; then
+  [[ -n $DEBUG ]] && echo "transmission-daemon is active. Stopping..."
+  kill -9 "$(pidof transmission-daemon)"
 fi
 
 # Changes port back to its default
 PORT=$(jq -r '."peer-port"' $SETTINGS) # retrieve port from settings file
-if [[ -n $DEBUG ]]; then echo "VPN port inside Transmission settings file: $PORT"; fi
+[[ -n $DEBUG ]] && echo "VPN port inside Transmission settings file: $PORT"
 
 # Check if port needs modifiying
 if (( PORT == DEFAULT_PORT )); then
-  echo "Port rule is already at default value";
-  exit
+  [[ -n $DEBUG ]] && echo "Port rule is already at default value"
+  exit 0
 fi
 
 tempSettings=$(jq '."peer-port"'="$DEFAULT_PORT" $SETTINGS)
 printf "%s" "$tempSettings" > $SETTINGS
 
 # deletes UFW rule of VPN port
-ufw delete allow "$PORT/tcp" > /dev/null
+# ufw delete allow "$PORT/tcp" > /dev/null
 
 echo "Port rule back to default value"

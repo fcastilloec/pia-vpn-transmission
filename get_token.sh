@@ -8,7 +8,7 @@
 set -eE
 failure() {
   local lineno=$1; local msg=$2
-  [[ "$-" =~ .*e.* ]] && echo "$(basename "$0"): failed at $lineno: $msg"
+  echo "$(basename "$0"): failed at $lineno: $msg"
 }
 trap 'failure ${LINENO} "$BASH_COMMAND"' ERR
 
@@ -54,11 +54,12 @@ check_tool curl curl
 check_tool jq jq
 
 # Check if the mandatory environment variables are set.
-if [[ ! $SERVER_ID || ! $AUTH_FILE ]]; then
-  echo "$(basename "$0") script requires 2 env vars:"
-  echo "SERVER_ID - id of the server you want to connect to"
-  echo "AUTH_FILE - filename that contains username and password (in that order, one per line)"
-  echo "PIA_PF    - [OPTIONAL] enable port forwarding (true by default)"
+if [[ -z $SERVER_ID || -z $AUTH_FILE || -z $NETNS_NAME ]]; then
+  echo "$(basename "$0") script requires:"
+  echo "SERVER_ID  - id of the server you want to connect to"
+  echo "AUTH_FILE  - filename that contains username and password (in that order, one per line)"
+  echo "NETNS_NAME - name of the namespace"
+  echo "PIA_PF     - [OPTIONAL] enable port forwarding (true by default)"
   exit 1
 fi
 
@@ -126,4 +127,5 @@ DEBUG=$DEBUG \
   PIA_TOKEN=$TOKEN \
   WG_SERVER_IP=$SERVER_WG_IP \
   WG_HOSTNAME=$SERVER_WG_HOSTNAME \
-  $CONNECT_SCRIPT || exit 20
+  NETNS_NAME=$NETNS_NAME \
+  $CONNECT_SCRIPT || exit 10

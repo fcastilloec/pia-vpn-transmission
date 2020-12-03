@@ -9,7 +9,7 @@
 set -eE
 failure() {
   local lineno=$1; local msg=$2
-  [[ "$-" =~ .*e.* ]] && echo "$(basename "$0"): failed at $lineno: $msg"
+  echo "$(basename "$0"): failed at $lineno: $msg"
 }
 trap 'failure ${LINENO} "$BASH_COMMAND"' ERR
 
@@ -33,13 +33,17 @@ function get_signature_and_payload() {
 
 ############### CHECKS ###############
 # Check if the mandatory environment variables are set.
-if [[ -z $PF_GATEWAY || -z $PIA_TOKEN || -z $PF_HOSTNAME ]]; then
-  echo "$(basename "$0") script requires 3 env vars:"
+if [[ -z $PF_GATEWAY || -z $PIA_TOKEN || -z $PF_HOSTNAME || -z $NETNS_NAME ]]; then
+  echo "$(basename "$0") script requires:"
   echo "PF_GATEWAY  - the IP of your gateway"
   echo "PF_HOSTNAME - name of the host used for SSL/TLS certificate verification"
   echo "PIA_TOKEN   - the token you use to connect to the vpn services"
+  echo "NETNS_NAME  - name of the namespace"
   exit 1
 fi
+
+# Check if running as root/sudo
+[ ${EUID:-$(id -u)} -eq 0 ] || exec sudo -E "$(readlink -f "$0")" "$@"
 
 ############### VARIABLES ###############
 BIND_INTERVAL=15 # time in minutes to re-bind the port, otherwise it gets deleted
@@ -80,12 +84,13 @@ BINDING="PF_HOSTNAME=$PF_HOSTNAME\
  PF_GATEWAY=$PF_GATEWAY\
  PAYLOAD=$payload\
  SIGNATURE=$signature\
+ NETNS_NAME=$NETNS_NAME\
  $BIND_SCRIPT"
 
-eval "$BINDING" > /dev/null || exit 20 # runs the command store in BINDING
+eval "$BINDING" || exit 20 # runs the command store in BINDING
 
 # Set crontab to keep binding the port every BIND_INTERVAL minutes
 minutes=$(seq -s , $(( $(date +"%M") % BIND_INTERVAL )) $BIND_INTERVAL 59) # Calculate 15min from current time
-echo "$minutes * * * * $BINDING >> $PORT_LOG 2>&1" | crontab -u felipe -
+echo "$minutes * * * * $BINDING >> $PORT_LOG 2>&1" | crontab -u root -
 
 true > $PORT_LOG # empties the log file, so the output is only for the current session
