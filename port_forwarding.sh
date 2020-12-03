@@ -15,9 +15,8 @@ trap 'failure ${LINENO} "$BASH_COMMAND"' ERR
 
 ############### FUNCTIONS ###############
 function get_signature_and_payload() {
-  [[ -n $DEBUG ]] && echo "Getting new signature..."
   local payload_and_signature
-  payload_and_signature="$(curl -s -m 5 \
+  payload_and_signature="$(ip netns exec "$NETNS_NAME" curl -s -m 5 \
     --connect-to "$PF_HOSTNAME::$PF_GATEWAY:" \
     --cacert "$CERT" \
     -G --data-urlencode "token=${PIA_TOKEN}" \
@@ -63,10 +62,10 @@ if [[ -f $PAYLOAD_FILE ]]; then
   # Check if port has expired. It expires in 2 months
   if ((  expires_at < $(date +%s) )); then
     [[ -n $DEBUG ]] && echo "Payload from file has expired"
-    PAYLOAD_AND_SIGNATURE=$(get_signature_and_payload)
+    PAYLOAD_AND_SIGNATURE="$(get_signature_and_payload)"
   fi
 else
-  PAYLOAD_AND_SIGNATURE=$(get_signature_and_payload)
+  PAYLOAD_AND_SIGNATURE="$(get_signature_and_payload)"
 fi
 [[ -n $DEBUG ]] && echo "Payload and signature: $PAYLOAD_AND_SIGNATURE"
 

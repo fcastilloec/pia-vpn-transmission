@@ -28,10 +28,9 @@ fi
 ############### VARIABLES ###############
 CONFIG_DIR=/home/felipe/.config/pia_vpn
 CERT=$CONFIG_DIR/ca.rsa.4096.crt
-CURL_NETNS="ip netns exec $NETNS_NAME curl"
 
 ############### BINDING ###############
-bind_port_response="$($CURL_NETNS -Gs -m 5 \
+bind_port_response="$(ip netns exec "$NETNS_NAME" curl -Gs -m 5 \
   --connect-to "$PF_HOSTNAME::$PF_GATEWAY:" \
   --cacert "$CERT" \
   --data-urlencode "payload=${PAYLOAD}" \
