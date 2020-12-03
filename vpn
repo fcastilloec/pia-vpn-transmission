@@ -3,7 +3,7 @@
 set -eE
 failure() {
   local lineno=$1; local msg=$2
-  [[ "$-" =~ .*e.* ]] && echo "$(basename "$0"): failed at $lineno: $msg"
+  echo "$(basename "$0"): failed at $lineno: $msg"
 }
 trap 'failure ${LINENO} "$BASH_COMMAND"' ERR
 
@@ -42,17 +42,33 @@ function printHelp() {
 
 # Stops the VPN
 function vpnStop() {
-  if ! ip link show pia > /dev/null 2>&1; then echo "Nothing to stop"; exit; fi
-  sudo wg-quick down pia > /dev/null 2>&1 # Stop VPN connection
-  set +e; crontab -u felipe -r > /dev/null 2>&1; set -e # Remove port binding script
-  echo "VPN disconnected"
+  if sudo ip -n "$NETNS_NAME" link show pia > /dev/null 2>&1; then
+    sudo ip netns exec "$NETNS_NAME" wg-quick down pia > /dev/null 2>&1 # Stop VPN connection
+    echo "VPN disconnected"
+  else
+    echo "Nothing to stop"
+  fi
+
+  sudo crontab -r > /dev/null 2>&1 || true # Remove port binding script
   DEBUG=$DEBUG $TRANSMISSION_STOP_SCRIPT # Stop Transmission
+  DEBUG=$DEBUG NETNS_NAME=$NETNS_NAME $NAMESCAPE_DELETE # Delete namespace
+}
+
+# Retrieves the Public IP
+# shellcheck disable=SC2120
+function getIP() {
+  local namespace=$1
+  if [[ -n $namespace ]]; then
+    sudo ip netns exec "$NETNS_NAME" dig TXT +short o-o.myaddr.l.google.com @ns1.google.com | awk -F'"' '{ print $2}'
+  else
+    dig TXT +short o-o.myaddr.l.google.com @ns1.google.com | awk -F'"' '{ print $2}'
+  fi
 }
 
 ############### CHECKS ###############
 check_tool jq jq
 check_tool dig dig
-check_tool mmdbinspect mmdbinspect
+check_tool socat socat
 
 # Analyze script options
 while (( "$#" )); do
@@ -83,12 +99,15 @@ WAIT_SECONDS=1 # seconds to wait before checking for updated IP
 MAX_WAIT=12 # It'll wait for SEC times this value, i.e. SEC=5 MAX_WAIT=12, will wait for 1 minute
 GEOIP=/home/felipe/.config/geoip/database/GeoLite2-City.mmdb # database for status info
 AUTH_FILE=/home/felipe/.config/pia_vpn/passwd # PIA username and password
+NETNS_NAME=piaVPN # name of the namespace
 
 # Necessary scripts
 SCRIPTS_DIR=/home/felipe/workspace/pia-vpn-transmission
 VPN_START_SCRIPT=$SCRIPTS_DIR/get_token.sh
 TRANSMISSION_START_SCRIPT=$SCRIPTS_DIR/start_transmission.sh
 TRANSMISSION_STOP_SCRIPT=$SCRIPTS_DIR/stop_transmission.sh
+NAMESCAPE_DELETE=$SCRIPTS_DIR/delete_namespace.sh
+MMDBINSPECT=/home/felipe/go/bin/mmdbinspect
 
 # Default to always forward port unless option to not do so was passed
 [[ $PIA_PF != "false" ]] && PIA_PF="true"
@@ -110,26 +129,26 @@ esac
 case $OPTIONS in
   start)
     # Check if we should stop any existing connections
-    if ip link show pia > /dev/null 2>&1; then
+    if sudo ip -n "$NETNS_NAME" link show pia > /dev/null 2>&1; then
       read -r -n 1 -p "Do you want to stop the current connection before starting a new one? [Y/n] " stop
       [[ -n $stop ]] && printf "\n" # prints an emtpy line only when non-empty input
       stop=${stop:-y} # if empty, replace with 'y'
       if [[ $stop == "y" ]]; then vpnStop; else exit 0; fi
     fi
 
-    IP=$(dig TXT +short o-o.myaddr.l.google.com @ns1.google.com | awk -F'"' '{ print $2}') # Get IP before VPN
+    IP=$(getIP) # Get IP before VPN
     if [[ -n $DEBUG ]]; then echo "IP before VPN: $IP"; fi
     VPN_IP="$IP" # Initiate the variable for while loop
 
     # Connects to the VPN
-    DEBUG=$DEBUG SERVER_ID=$SERVER_ID AUTH_FILE=$AUTH_FILE PIA_PF=$PIA_PF $VPN_START_SCRIPT
+    DEBUG=$DEBUG SERVER_ID=$SERVER_ID AUTH_FILE=$AUTH_FILE PIA_PF=$PIA_PF NETNS_NAME=$NETNS_NAME $VPN_START_SCRIPT
 
     # Check and wait for new IP
     echo "Connected. Checking for new IP address...."
     count=1 # Doesn't let the while loop run forever
     while [[ $VPN_IP == "$IP" ]] && (( count <= MAX_WAIT )); do
       sleep $WAIT_SECONDS # Wait before checking for new IP
-      VPN_IP=$(dig TXT +short o-o.myaddr.l.google.com @ns1.google.com | awk -F'"' '{ print $2}') # Get IP after VPN
+      VPN_IP=$(getIP true) # Get IP after VPN
       if [[ -n $DEBUG ]]; then printf "%d check for new IP\n" "$count"; fi
       (( count++ ))
     done
@@ -143,15 +162,15 @@ case $OPTIONS in
     echo "Connected to $CITY. Your new public IP is $VPN_IP"
 
     # Starts Transmission if port forwarding is enabled
-    [[ $PIA_PF == "true" ]] && DEBUG=$DEBUG $TRANSMISSION_START_SCRIPT
+    [[ $PIA_PF == "true" ]] && DEBUG=$DEBUG NETNS_NAME=$NETNS_NAME $TRANSMISSION_START_SCRIPT
     ;;
   stop)
     vpnStop
     ;;
   status | "")
-    if ! ip link show pia > /dev/null 2>&1; then echo "VPN is disconnected"; exit; fi
-    VPN_IP=$(dig TXT +short o-o.myaddr.l.google.com @ns1.google.com | awk -F'"' '{ print $2}')
-    LOCATION=$(mmdbinspect -db $GEOIP "$VPN_IP" | jq '.[].Records[].Record | .city.names.en + " "  + .subdivisions[].iso_code  + ", " + .country.names.en')
+    if ! sudo ip -n "$NETNS_NAME" link show pia > /dev/null 2>&1; then echo "VPN is disconnected"; exit; fi
+    VPN_IP=$(getIP true)
+    LOCATION=$($MMDBINSPECT -db $GEOIP "$VPN_IP" | jq '.[].Records[].Record | .city.names.en + " "  + .subdivisions[].iso_code  + ", " + .country.names.en')
     echo "Connected to $LOCATION. Your public IP is $VPN_IP"
     ;;
   *)
