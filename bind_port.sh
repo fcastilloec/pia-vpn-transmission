@@ -38,8 +38,8 @@ bind_port_response="$(ip netns exec "$NETNS_NAME" curl -Gs -m 5 \
   "https://${PF_HOSTNAME}:19999/bindPort")"
 
 if [ "$(echo "$bind_port_response" | jq -r '.status')" != "OK" ]; then
-  echo "The API did not return OK when trying to bind port. Exiting."
+  echo "$(date) ERROR: $(echo "$bind_port_response" | jq -r '.status')"
   exit 1
 fi
 
-echo "Port refreshed on $(date)"
+# echo "Port refreshed on $(date)"
