@@ -55,4 +55,4 @@ echo "VPN port forwarded, port $PORT is being used"
 ip netns exec "$NETNS_NAME" sudo -u felipe /usr/bin/transmission-daemon -g /home/felipe/.config/transmission
 
 # Start redirection to access web interface
-socat tcp-listen:9091,reuseaddr,fork,range=192.168.1.0/26 tcp-connect:192.168.100.2:9091 > /dev/null 2>&1 &
+socat tcp-listen:9091,reuseaddr,fork tcp-connect:192.168.100.2:9091 > /dev/null 2>&1 &
