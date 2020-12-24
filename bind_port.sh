@@ -15,9 +15,9 @@ trap 'failure ${LINENO} "$BASH_COMMAND"' ERR
 [ ${EUID:-$(id -u)} -eq 0 ] || exec sudo -E "$(readlink -f "$0")" "$@"
 
 # Check if the mandatory environment variables are set.
-if [[ -z $PF_HOSTNAME || -z $PAYLOAD || -z $SIGNATURE || -z $PF_GATEWAY || -z $NETNS_NAME ]]; then
-  echo This script requires:
-  echo "PF_HOSTNAME - name of the host used for SSL/TLS certificate verification"
+if [[ -z $WG_HOSTNAME || -z $PAYLOAD || -z $SIGNATURE || -z $PF_GATEWAY || -z $NETNS_NAME ]]; then
+  echo "$(basename "$0") script requires:"
+  echo "WG_HOSTNAME - name of the host used for SSL/TLS certificate verification"
   echo "PAYLOAD     - the payload for port forwarding"
   echo "SIGNATURE   - the signature to authenticate port forwarding"
   echo "PF_GATEWAY  - IP address of the gateway"
@@ -26,16 +26,16 @@ if [[ -z $PF_HOSTNAME || -z $PAYLOAD || -z $SIGNATURE || -z $PF_GATEWAY || -z $N
 fi
 
 ############### VARIABLES ###############
-CONFIG_DIR=/home/felipe/.config/pia_vpn
-CERT=$CONFIG_DIR/ca.rsa.4096.crt
+_CONFIG_DIR=/home/felipe/.config/pia_vpn
+_CERT=$_CONFIG_DIR/ca.rsa.4096.crt
 
 ############### BINDING ###############
 bind_port_response="$(ip netns exec "$NETNS_NAME" curl -Gs -m 5 \
-  --connect-to "$PF_HOSTNAME::$PF_GATEWAY:" \
-  --cacert "$CERT" \
+  --connect-to "$WG_HOSTNAME::$PF_GATEWAY:" \
+  --cacert "$_CERT" \
   --data-urlencode "payload=${PAYLOAD}" \
   --data-urlencode "signature=${SIGNATURE}" \
-  "https://${PF_HOSTNAME}:19999/bindPort")"
+  "https://${WG_HOSTNAME}:19999/bindPort")"
 
 if [ "$(echo "$bind_port_response" | jq -r '.status')" != "OK" ]; then
   echo "$(date) ERROR: $(echo "$bind_port_response" | jq -r '.status')"

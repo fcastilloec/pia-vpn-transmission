@@ -17,7 +17,7 @@ function check_tool() {
 }
 
 # Prints the help message
-function printHelp() {
+function print_help() {
   printf "Connects to a Private VPN server\n\n"
   printf "Usage: vpn [OPTIONS] [SERVER] [FLAGS]\n"
   printf "OPTIONS have to come before SERVER. FLAGS can be passed anywhere.\n"
@@ -41,22 +41,28 @@ function printHelp() {
 }
 
 # Stops the VPN
-function vpnStop() {
-  if sudo ip -n "$NETNS_NAME" link show pia > /dev/null 2>&1; then
-    sudo ip netns exec "$NETNS_NAME" wg-quick down pia > /dev/null 2>&1 # Stop VPN connection
+function vpn_stop() {
+  # Stop Transmission first
+  $_TRANSMISSION_STOP_SCRIPT
+
+  sudo crontab -r > /dev/null 2>&1 || true # Remove port binding script
+  sudo killall socat > /dev/null 2>&1 || true
+
+  if sudo ip -n "$NETNS_NAME" link show "$WG_LINK" > /dev/null 2>&1; then
+    # Delete the namespace
+    sudo ip netns delete "$NETNS_NAME" > /dev/null 2>&1
+
+    # Delete the DNS
+    sudo resolvconf -d "$WG_LINK" > /dev/null 2>&1
     echo "VPN disconnected"
   else
     echo "Nothing to stop"
   fi
-
-  sudo crontab -r > /dev/null 2>&1 || true # Remove port binding script
-  DEBUG=$DEBUG $TRANSMISSION_STOP_SCRIPT # Stop Transmission
-  DEBUG=$DEBUG NETNS_NAME=$NETNS_NAME $NAMESCAPE_DELETE # Delete namespace
 }
 
 # Retrieves the Public IP
 # shellcheck disable=SC2120
-function getIP() {
+function get_ip() {
   local namespace=$1
   if [[ -n $namespace ]]; then
     sudo ip netns exec "$NETNS_NAME" dig TXT +short o-o.myaddr.l.google.com @ns1.google.com | awk -F'"' '{ print $2}'
@@ -70,110 +76,124 @@ check_tool jq jq
 check_tool dig dig
 check_tool socat socat
 
+############### VARIABLES ###############
+DEBUG=false
+readonly _WAIT_SECONDS=1 # seconds to wait before checking for updated IP
+readonly _MAX_WAIT=12 # It'll wait for SEC times this value, i.e. SEC=5 _MAX_WAIT=12, will wait for 1 minute
+readonly _GEOIP=/home/felipe/.config/geoip/database/GeoLite2-City.mmdb # database for status info
+readonly CONFIG_DIR=/home/felipe/.config/pia_vpn
+readonly AUTH_FILE=$CONFIG_DIR/passwd # PIA username and password
+readonly CERT=$CONFIG_DIR/ca.rsa.4096.crt
+readonly NETNS_NAME=piaVPN # name of the namespace
+readonly WG_LINK=piaWg
+export CONFIG_DIR
+export AUTH_FILE
+export CERT
+export NETNS_NAME
+export WG_LINK
+
+# Necessary scripts
+readonly SCRIPTS_DIR=/home/felipe/workspace/pia-vpn-transmission
+readonly _VPN_START_SCRIPT=$SCRIPTS_DIR/get_token.sh
+readonly _TRANSMISSION_START_SCRIPT=$SCRIPTS_DIR/start_transmission.sh
+readonly _TRANSMISSION_STOP_SCRIPT=$SCRIPTS_DIR/stop_transmission.sh
+readonly _MMDBINSPECT=/home/felipe/go/bin/mmdbinspect
+export SCRIPTS_DIR
+
+# Default to always forward port unless option to not do so was passed
+[[ $PIA_PF != "false" ]] && PIA_PF="true"
+export PIA_PF
+
+############### SCRIPT OPTIONS ###############
 # Analyze script options
 while (( "$#" )); do
   case "$1" in
-    -h|--help) printHelp; exit;;
+    -h|--help) print_help; exit;;
     -v) DEBUG=true; shift;;
     -n) PIA_PF="false"; shift;;
     -*) # unsupported flags
       printf "\e[31m%s%s\e[0m\n" "Error: Unsupported flag " "$1"
-      printHelp; exit 1;;
+      print_help; exit 1;;
     *) # preserve positional arguments
-      PARAMS+=("$1"); shift;;
+      params+=("$1"); shift;;
   esac
 done
+readonly DEBUG
+export DEBUG
 
 # Checks for correct amount of parameters and assignes them
-if (( ${#PARAMS[@]} > 2 )); then printf "\e[31m%s\e[0m\n" "A max of two parameters can be passed"; exit 1; fi
-OPTIONS=${PARAMS[0]}
-SERVER=${PARAMS[1]}
+if (( ${#params[@]} > 2 )); then printf "\e[31m%s\e[0m\n" "A max of two parameters can be passed"; exit 1; fi
+readonly options=${params[0]}
+readonly server=${params[1]}
 
-if [[ -n $DEBUG ]]; then
-  echo "OPTIONS: $OPTIONS"
-  echo "SERVER: $SERVER"
+if [[ $DEBUG == true ]]; then
+  echo "OPTIONS: $options"
+  echo "SERVER: $server"
 fi
 
-############### VARIABLES ###############
-WAIT_SECONDS=1 # seconds to wait before checking for updated IP
-MAX_WAIT=12 # It'll wait for SEC times this value, i.e. SEC=5 MAX_WAIT=12, will wait for 1 minute
-GEOIP=/home/felipe/.config/geoip/database/GeoLite2-City.mmdb # database for status info
-AUTH_FILE=/home/felipe/.config/pia_vpn/passwd # PIA username and password
-NETNS_NAME=piaVPN # name of the namespace
-
-# Necessary scripts
-SCRIPTS_DIR=/home/felipe/workspace/pia-vpn-transmission
-VPN_START_SCRIPT=$SCRIPTS_DIR/get_token.sh
-TRANSMISSION_START_SCRIPT=$SCRIPTS_DIR/start_transmission.sh
-TRANSMISSION_STOP_SCRIPT=$SCRIPTS_DIR/stop_transmission.sh
-NAMESCAPE_DELETE=$SCRIPTS_DIR/delete_namespace.sh
-MMDBINSPECT=/home/felipe/go/bin/mmdbinspect
-
-# Default to always forward port unless option to not do so was passed
-[[ $PIA_PF != "false" ]] && PIA_PF="true"
-
 # Assigns the correct server ID
-case $SERVER in
-  van | "") CITY="Vancouver, Canada"; SERVER_ID="ca_vancouver";;
-  ont) CITY="Ontario, Canada"; SERVER_ID="ca_ontario";;
-  mtl) CITY="Montreal, Canada"; SERVER_ID="ca";;
-  tor) CITY="Toronto, Canada"; SERVER_ID="ca_toronto";;
-  ber) CITY="Berlin, Germany"; SERVER_ID="ca_toronto";;
-  frk) CITY="Frankfurt, Germany"; SERVER_ID="de-frankfurt";;
-  fra) CITY="France"; SERVER_ID="france";;
-  sea) CITY="Seattle, US"; SERVER_ID="us_seattle";;
+case $server in
+  van | "") city="Vancouver, Canada"; SERVER_ID="ca_vancouver";;
+  ont) city="Ontario, Canada"; SERVER_ID="ca_ontario";;
+  mtl) city="Montreal, Canada"; SERVER_ID="ca";;
+  tor) city="Toronto, Canada"; SERVER_ID="ca_toronto";;
+  ber) city="Berlin, Germany"; SERVER_ID="ca_toronto";;
+  frk) city="Frankfurt, Germany"; SERVER_ID="de-frankfurt";;
+  fra) city="France"; SERVER_ID="france";;
+  sea) city="Seattle, US"; SERVER_ID="us_seattle";;
   *) printf "\e[31m%s\e[0m\n" "Unrecognized server"; exit 1;;
 esac
+readonly SERVER_ID
+export SERVER_ID
 
 ###########################################
-case $OPTIONS in
+case $options in
   start)
     # Check if we should stop any existing connections
-    if sudo ip -n "$NETNS_NAME" link show pia > /dev/null 2>&1; then
+    if sudo ip -n "$NETNS_NAME" link show $WG_LINK > /dev/null 2>&1; then
       read -r -n 1 -p "Do you want to stop the current connection before starting a new one? [Y/n] " stop
       [[ -n $stop ]] && printf "\n" # prints an emtpy line only when non-empty input
       stop=${stop:-y} # if empty, replace with 'y'
-      if [[ $stop == "y" ]]; then vpnStop; else exit 0; fi
+      if [[ $stop == "y" ]]; then vpn_stop; else exit 0; fi
     fi
 
-    IP=$(getIP) # Get IP before VPN
-    if [[ -n $DEBUG ]]; then echo "IP before VPN: $IP"; fi
-    VPN_IP="$IP" # Initiate the variable for while loop
+    readonly ip=$(get_ip) # Get IP before VPN
+    if [[ $DEBUG == true ]]; then echo "IP before VPN: $ip"; fi
+    vpn_ip="$ip" # Initiate the variable for while loop
 
     # Connects to the VPN
-    DEBUG=$DEBUG SERVER_ID=$SERVER_ID AUTH_FILE=$AUTH_FILE PIA_PF=$PIA_PF NETNS_NAME=$NETNS_NAME $VPN_START_SCRIPT
+    $_VPN_START_SCRIPT || exit 10
 
     # Check and wait for new IP
     echo "Connected. Checking for new IP address...."
     count=1 # Doesn't let the while loop run forever
-    while [[ $VPN_IP == "$IP" ]] && (( count <= MAX_WAIT )); do
-      sleep $WAIT_SECONDS # Wait before checking for new IP
-      VPN_IP=$(getIP true) # Get IP after VPN
-      if [[ -n $DEBUG ]]; then printf "%d check for new IP\n" "$count"; fi
+    while [[ $vpn_ip == "$ip" ]] && (( count <= _MAX_WAIT )); do
+      sleep $_WAIT_SECONDS # Wait before checking for new IP
+      vpn_ip=$(get_ip true) # Get IP after VPN
+      if [[ $DEBUG == true ]]; then printf "%d check for new IP\n" "$count"; fi
       (( count++ ))
     done
 
-    if [[ $VPN_IP == "$IP" ]]; then
-      echo "You're IP hasn't changed after $((MAX_WAIT * SEC)) seconds. Disconnecting VPN..."
-      vpnStop
+    if [[ $vpn_ip == "$ip" ]]; then
+      echo "You're IP hasn't changed after $((_MAX_WAIT * SEC)) seconds. Disconnecting VPN..."
+      vpn_stop
       exit
     fi
-
-    echo "Connected to $CITY. Your new public IP is $VPN_IP"
+    echo "Connected to $city. Your new public IP is $vpn_ip"
 
     # Starts Transmission if port forwarding is enabled
-    [[ $PIA_PF == "true" ]] && DEBUG=$DEBUG NETNS_NAME=$NETNS_NAME $TRANSMISSION_START_SCRIPT
+    [[ $PIA_PF == "true" ]] && $_TRANSMISSION_START_SCRIPT
     ;;
   stop)
-    vpnStop
+    vpn_stop
     ;;
   status | "")
-    if ! sudo ip -n "$NETNS_NAME" link show pia > /dev/null 2>&1; then echo "VPN is disconnected"; exit; fi
-    VPN_IP=$(getIP true)
-    LOCATION=$($MMDBINSPECT -db $GEOIP "$VPN_IP" | jq '.[].Records[].Record | .city.names.en + " "  + .subdivisions[].iso_code  + ", " + .country.names.en')
-    echo "Connected to $LOCATION. Your public IP is $VPN_IP"
+    if ! sudo ip -n "$NETNS_NAME" link show $WG_LINK > /dev/null 2>&1; then echo "VPN is disconnected"; exit; fi
+    vpn_ip=$(get_ip true)
+    location=$($_MMDBINSPECT -db $_GEOIP "$vpn_ip" | jq '.[].Records[].Record | .city.names.en + " "  + .subdivisions[].iso_code  + ", " + .country.names.en')
+    echo "Connected to $location. Your public IP is $vpn_ip"
     ;;
   *)
-    printHelp
+    print_help
     ;;
 esac

@@ -23,17 +23,17 @@ function check_tool() {
 }
 
 # Retrieves a token from an specified server.
-# Needs the following env variables PIA_USER, PIA_PASS, SERVER_META_HOSTNAME, SERVER_META_IP, CERT, TOKEN_FILE
+# Needs the following variables _PIA_USER, _PIA_PASS, server_meta_hostname, server_meta_ip, CERT, _TOKEN_FILE
 function get_auth_token() {
   # Retrieves token
   local generateTokenResponse
   local token
 
-  generateTokenResponse=$(curl -s -f -u "$PIA_USER:$PIA_PASS" \
-    --connect-to "$SERVER_META_HOSTNAME::$SERVER_META_IP:" \
+  generateTokenResponse=$(curl -s -f -u "$_PIA_USER:$_PIA_PASS" \
+    --connect-to "$server_meta_hostname::$server_meta_ip:" \
     --cacert "$CERT" \
-    "https://$SERVER_META_HOSTNAME/authv3/generateToken")
-  [[ -n $DEBUG ]] && echo "Retrieved token: $generateTokenResponse"
+    "https://$server_meta_hostname/authv3/generateToken")
+  [[ $DEBUG == true ]] && echo "Retrieved token: $generateTokenResponse"
 
   # Checks response
   if [ "$(echo "$generateTokenResponse" | jq -r '.status')" != "OK" ]; then
@@ -46,7 +46,7 @@ function get_auth_token() {
   echo "{
     \"token\": \"$token\",
     \"date\": \"$(date +%s)\"
-  }" > "$TOKEN_FILE"
+  }" > "$_TOKEN_FILE"
 }
 
 ############### CHECKS ###############
@@ -54,12 +54,14 @@ check_tool curl curl
 check_tool jq jq
 
 # Check if the mandatory environment variables are set.
-if [[ -z $SERVER_ID || -z $AUTH_FILE || -z $NETNS_NAME ]]; then
+if [[ -z $CERT || -z $AUTH_FILE || -z $SERVER_ID || -z $PIA_PF || -z $CONFIG_DIR || -z $SCRIPTS_DIR ]]; then
   echo "$(basename "$0") script requires:"
-  echo "SERVER_ID  - id of the server you want to connect to"
-  echo "AUTH_FILE  - filename that contains username and password (in that order, one per line)"
-  echo "NETNS_NAME - name of the namespace"
-  echo "PIA_PF     - [OPTIONAL] enable port forwarding (true by default)"
+  echo "CERT        - The PIA certificate"
+  echo "AUTH_FILE   - filename that contains username and password (in that order, one per line)"
+  echo "SERVER_ID   - id of the server you want to connect to"
+  echo "PIA_PF      - enable port forwarding (true by default)"
+  echo "CONFIG_DIR  - directory for all configuration files"
+  echo "SCRIPTS_DIR - directory for all scripts"
   exit 1
 fi
 
@@ -69,7 +71,7 @@ if [[ ! -f $AUTH_FILE ]]; then
 fi
 
 # Show debugging info
-if [[ -n $DEBUG ]]; then
+if [[ $DEBUG == true ]]; then
   echo "SERVER_ID: $SERVER_ID"
   echo "AUTH_FILE: $AUTH_FILE"
   echo "PIA_PF: $PIA_PF"
@@ -77,55 +79,51 @@ fi
 
 ############### VARIABLES ###############
 # Read username and password from passwd file
-readarray -t AUTH < "$AUTH_FILE" # Read username and password
-if [[ ${#AUTH[@]} -ne 2 ]]; then >&2 echo -e "\e[31mNo username or password provided\e[0m\n"; exit 1; fi
-PIA_USER=${AUTH[0]}
-PIA_PASS=${AUTH[1]}
+readarray -t authorization < "$AUTH_FILE" # Read username and password
+if [[ ${#authorization[@]} -ne 2 ]]; then >&2 echo -e "\e[31mNo username or password provided\e[0m\n"; exit 1; fi
+readonly _PIA_USER=${authorization[0]}
+readonly _PIA_PASS=${authorization[1]}
 
-PIA_CONFIG_DIR=/home/felipe/.config/pia_vpn
-SERVER_LIST=$PIA_CONFIG_DIR/servers.json
-TOKEN_FILE=$PIA_CONFIG_DIR/token.json
-CERT=$PIA_CONFIG_DIR/ca.rsa.4096.crt
-CONNECT_SCRIPT=/home/felipe/workspace/pia-vpn-transmission/connect_to_wg.sh
+readonly _SERVER_LIST=$CONFIG_DIR/servers.json
+readonly _TOKEN_FILE=$CONFIG_DIR/token.json
+readonly _CONNECT_SCRIPT=$SCRIPTS_DIR/connect_to_wg.sh
 
 # retrieve servers data specified by SERVER_ID from servers.json
-SERVER_DATA="$(jq ".[] | select(.id==\"$SERVER_ID\")" < "$SERVER_LIST")"
-if [[ ! $SERVER_DATA ]]; then # Checks that a server was found
+server_data="$(jq ".[] | select(.id==\"$SERVER_ID\")" < "$_SERVER_LIST")"
+if [[ ! $server_data ]]; then # Checks that a server was found
   >&2 echo "No server with id \"$SERVER_ID\" was found"
   echo "The following are valid servers ids (Name: ID):"
-  jq -r '.[] | .name + ": " + .id' < $SERVER_LIST
+  jq -r '.[] | .name + ": " + .id' < "$_SERVER_LIST"
   exit 1
 fi
-SERVER_META_IP="$(echo "$SERVER_DATA" | jq -r '.servers.meta[0].ip')"
-SERVER_META_HOSTNAME="$(echo "$SERVER_DATA" | jq -r '.servers.meta[0].cn')"
-SERVER_WG_IP="$(echo "$SERVER_DATA" | jq -r '.servers.wg[0].ip')"
-SERVER_WG_HOSTNAME="$(echo "$SERVER_DATA" | jq -r '.servers.wg[0].cn')"
-CAN_FORWARD="$(echo "$SERVER_DATA" | jq -r '.port_forward')"
+readonly server_meta_ip="$(echo "$server_data" | jq -r '.servers.meta[0].ip')"
+readonly server_meta_hostname="$(echo "$server_data" | jq -r '.servers.meta[0].cn')"
+readonly can_forward="$(echo "$server_data" | jq -r '.port_forward')"
+readonly WG_SERVER_IP="$(echo "$server_data" | jq -r '.servers.wg[0].ip')"
+readonly WG_HOSTNAME="$(echo "$server_data" | jq -r '.servers.wg[0].cn')"
+export WG_SERVER_IP
+export WG_HOSTNAME
 
 ############### TOKEN ###############
 # Check saved token if still valid, otherwise retrieve it
-if [[ -f $TOKEN_FILE ]]; then
-  [[ -n $DEBUG ]] && echo "Reading token from $TOKEN_FILE"
+if [[ -f $_TOKEN_FILE ]]; then
+  [[ $DEBUG == true ]] && echo "Reading token from $_TOKEN_FILE"
   # Check if token has expired (valid for 24 hours)
-  if (( $(date +%s) < $(jq -r '.date' < "$TOKEN_FILE") + 86400 )); then
-    TOKEN="$(jq -r '.token' < "$TOKEN_FILE")"
+  if (( $(date +%s) < $(jq -r '.date' < "$_TOKEN_FILE") + 86400 )); then
+    PIA_TOKEN="$(jq -r '.token' < "$_TOKEN_FILE")"
   else
-    [[ -n $DEBUG ]] && echo "Token expired or empty, retrieving a new one"
-    TOKEN=$(get_auth_token)
+    [[ $DEBUG == true ]] && echo "Token expired or empty, retrieving a new one"
+    PIA_TOKEN=$(get_auth_token)
   fi
 else
-  [[ -n $DEBUG ]] && echo "No token file found, retrieving token"
-  TOKEN=$(get_auth_token)
+  [[ $DEBUG == true ]] && echo "No token file found, retrieving token"
+  PIA_TOKEN=$(get_auth_token)
 fi
+readonly PIA_TOKEN
+export PIA_TOKEN
 
-[[ $CAN_FORWARD == "false" ]] && PIA_PF="false"
-[[ -n $DEBUG ]] && echo "Server $SERVER_ID has support for port forwarding: $CAN_FORWARD"
+[[ $can_forward == false ]] && PIA_PF=false
+[[ $DEBUG == true ]] && echo "Server $SERVER_ID has support for port forwarding: $can_forward"
 
 # Connect to Wireguard server
-DEBUG=$DEBUG \
-  PIA_PF=$PIA_PF \
-  PIA_TOKEN=$TOKEN \
-  WG_SERVER_IP=$SERVER_WG_IP \
-  WG_HOSTNAME=$SERVER_WG_HOSTNAME \
-  NETNS_NAME=$NETNS_NAME \
-  $CONNECT_SCRIPT || exit 10
+$_CONNECT_SCRIPT || exit 10

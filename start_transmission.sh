@@ -39,7 +39,7 @@ fi
 ##########################################
 # Stop transmission-daemon if it's active
 if pidof transmission-daemon > /dev/null; then
-  if [[ -n $DEBUG ]]; then echo "transmission-daemon is active. Stopping..."; fi
+  if [[ $DEBUG == true ]]; then echo "transmission-daemon is active. Stopping..."; fi
   kill -9 "$(pidof transmission-daemon)"
 fi
 
@@ -55,4 +55,5 @@ echo "VPN port forwarded, port $PORT is being used"
 ip netns exec "$NETNS_NAME" sudo -u felipe /usr/bin/transmission-daemon -g /home/felipe/.config/transmission
 
 # Start redirection to access web interface
-socat tcp-listen:9091,reuseaddr,fork tcp-connect:192.168.100.2:9091 > /dev/null 2>&1 &
+socat tcp-listen:9091,fork,reuseaddr \
+  exec:"ip netns exec $NETNS_NAME socat STDIO \"tcp-connect:127.0.0.1:9091\"",nofork > /dev/null 2>&1 &

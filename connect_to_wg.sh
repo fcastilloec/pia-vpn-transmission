@@ -23,12 +23,13 @@ function check_tool() {
 
 ############### CHECKS ###############
 # Now we call the function to make sure we can use wg-quick, curl and jq.
-check_tool wg-quick wireguard-tools
+check_tool wg wireguard-tools
 check_tool curl curl
 check_tool jq jq
 
 # Check if the mandatory environment variables are set.
-if [[ -z $WG_SERVER_IP || -z $WG_HOSTNAME || -z $PIA_TOKEN || -z $NETNS_NAME ]]; then
+if [[ -z $WG_SERVER_IP || -z $WG_HOSTNAME || -z $PIA_TOKEN || -z $NETNS_NAME
+ || -z $WG_LINK ]]; then
   echo "$(basename "$0") script requires:"
   echo "WG_SERVER_IP - IP that you want to connect to"
   echo "WG_HOSTNAME  - name of the server, required for ssl"
@@ -41,56 +42,28 @@ fi
 # Check if running as root/sudo
 [ ${EUID:-$(id -u)} -eq 0 ] || exec sudo -E "$(readlink -f "$0")" "$@"
 
-############### VARIABLES ###############
-defaultDNS="1.1.1.1"
-PORT_SCRIPT=/home/felipe/workspace/pia-vpn-transmission/port_forwarding.sh
-PIA_CONFIG_DIR=/home/felipe/.config/pia_vpn
-CERT=$PIA_CONFIG_DIR/ca.rsa.4096.crt
-PRIVATE_KEY="$(wg genkey)"
-PUBLIC_KEY="$( echo "$PRIVATE_KEY" | wg pubkey)"
-IFACE_DEFAULT=$(route | grep '^default' | grep -o '[^ ]*$')
-
-############### NAMESPACE ###############
-# Set correct nameserver for DNS
-mkdir -p "/etc/netns/$NETNS_NAME"
-# dnsServer="$(echo "$wireguard_json" | jq -r '.dns_servers[0]')"
-# we can use above PIA dns if needed
-echo "nameserver $defaultDNS" > "/etc/netns/$NETNS_NAME/resolv.conf"
-
 # Check if namespace already exists, if so delete it
 if ip netns list | grep -q "$NETNS_NAME"; then
-  [[ -n $DEBUG ]] && echo "Namespace $NETNS_NAME already exists, deleting it"
+  [[ $DEBUG == true ]] && echo "Namespace $NETNS_NAME already exists, deleting it"
   ip netns delete "$NETNS_NAME"
 fi
-ip netns add "$NETNS_NAME" # create namespace
 
-# Creates necessary network for wireguard
-[[ -n $DEBUG ]] && echo "Starting WireGuard interface..."
+############### VARIABLES ###############
+readonly _DEFAULT_DNS="1.1.1.1"
+readonly _PORT_SCRIPT=$SCRIPTS_DIR/port_forwarding.sh
+readonly private_key="$(wg genkey)"
+readonly public_key="$(echo "$private_key" | wg pubkey)"
 
-############### NAMESPACES ###############
-iface_local="$NETNS_NAME-veth0"
-iface_peer="$NETNS_NAME-veth1"
-ip link add name "$iface_local" type veth peer name "$iface_peer" netns "$NETNS_NAME"
-ip addr add 192.168.100.1/24 dev "$iface_local"
-ip link set "$iface_local" up
-ip netns exec "$NETNS_NAME" ip addr add 192.168.100.2/24 dev "$iface_peer"
-ip -n "$NETNS_NAME" link set "$iface_peer" up
-ip -n "$NETNS_NAME" link set lo up
-ip -n "$NETNS_NAME" route add default via 192.168.100.1
-iptables -t nat -A POSTROUTING -s 192.168.100.0/24 -o "$IFACE_DEFAULT" -j MASQUERADE
-iptables -A FORWARD -i "$IFACE_DEFAULT" -o "$iface_local" -j ACCEPT
-iptables -A FORWARD -o "$IFACE_DEFAULT" -i "$iface_local" -j ACCEPT
-
-############### CONNECT ###############
+############### WIREGUARD CONFIG ###############
 # Authenticate via the PIA WireGuard RESTful API.
 # This will return a JSON with data required for authentication.
 wireguard_json="$(curl -s -G \
   --connect-to "$WG_HOSTNAME::$WG_SERVER_IP:" \
   --cacert "$CERT" \
   --data-urlencode "pt=${PIA_TOKEN}" \
-  --data-urlencode "pubkey=$PUBLIC_KEY" \
+  --data-urlencode "pubkey=$public_key" \
   "https://${WG_HOSTNAME}:1337/addKey" )"
-[[ -n $DEBUG ]] && echo "WireGuard response: $wireguard_json"
+[[ $DEBUG == true ]] && echo "WireGuard response: $wireguard_json"
 
 # Check if the API returned OK and stop this script if it didn't.
 if [ "$(echo "$wireguard_json" | jq -r '.status')" != "OK" ]; then
@@ -98,36 +71,54 @@ if [ "$(echo "$wireguard_json" | jq -r '.status')" != "OK" ]; then
   exit 1
 fi
 
+# Set IP address of interface
+readonly wg_address="$(echo "$wireguard_json" | jq -r '.peer_ip')"
+
 # Create the WireGuard config based on the JSON received from the API
-[[ -n $DEBUG ]] && echo "Creating WireGuard config based on JSON received"
+[[ $DEBUG == true ]] && echo "Creating WireGuard config based on JSON received"
 mkdir -p /etc/wireguard
-echo "
+echo "\
 [Interface]
-Address = $(echo "$wireguard_json" | jq -r '.peer_ip')
-PrivateKey = $PRIVATE_KEY
-## If you want wg-quick to also set up your DNS, uncomment the line below.
-# DNS = $(echo "$wireguard_json" | jq -r '.dns_servers[0]')
+PrivateKey = $private_key
 
 [Peer]
 PersistentKeepalive = 25
 PublicKey = $(echo "$wireguard_json" | jq -r '.server_key')
 AllowedIPs = 0.0.0.0/0
 Endpoint = ${WG_SERVER_IP}:$(echo "$wireguard_json" | jq -r '.server_port')
-" > /etc/wireguard/pia.conf || exit 1
+" | sudo -u felipe tee "$CONFIG_DIR/$WG_LINK.conf" > /dev/null || exit 1
 
-# Start the WireGuard interface.
-[[ -n $DEBUG ]] && echo "Starting WireGuard interface..."
-if [[ -n $DEBUG ]]; then
-  if ! ip netns exec "$NETNS_NAME" wg-quick up pia; then echo "Failed to start wireguard"; exit 1; fi
-else
-  if ! ip netns exec "$NETNS_NAME" wg-quick up pia > /dev/null 2>&1; then echo "Failed to start wireguard"; exit 1; fi
-fi
+############### NAMESPACE ###############
+[[ $DEBUG == true ]] && echo "Starting WireGuard interface..."
+
+# Create wireguard interface
+ip link add "$WG_LINK" type wireguard
+
+# Load wireguard configuration
+wg setconf "$WG_LINK" "$CONFIG_DIR/$WG_LINK.conf"
+
+# Create a new namespace
+ip netns add "$NETNS_NAME"
+
+# Move Wireguard interface to namespace
+ip link set "$WG_LINK" netns "$NETNS_NAME"
+
+# Set IP address of wireguard interface
+ip -n "$NETNS_NAME" addr add "$wg_address" dev "$WG_LINK"
+
+# Start the WireGuard interface and sets it as default
+ip -n "$NETNS_NAME" link set lo up
+ip -n "$NETNS_NAME" link set "$WG_LINK" up
+ip -n "$NETNS_NAME" route add default dev "$WG_LINK"
+
+############### DNS ###############
+# Sets the DNS server. We can use PIA's server, instead of default one:
+# dnsServer="$(echo "$wireguard_json" | jq -r '.dns_servers[0]')"
+echo "nameserver $_DEFAULT_DNS" | ip netns exec "$NETNS_NAME" resolvconf -a "$WG_LINK" -m 0 -x > /dev/null 2>&1
 
 # Stop the script if PIA_PF is not set to "true".
-[[ "$PIA_PF" != true ]] && exit
+[[ $PIA_PF != true ]] && exit
 
 # Start port forwarding and make sure it runs under my user
-[[ -n $DEBUG ]] && echo "Starting port forwarding"
-DEBUG="$DEBUG" PIA_TOKEN="$PIA_TOKEN" PF_HOSTNAME="$WG_HOSTNAME" NETNS_NAME="$NETNS_NAME" \
-  PF_GATEWAY="$(echo "$wireguard_json" | jq -r '.server_vip')" \
-  $PORT_SCRIPT || exit 20
+[[ $DEBUG == true ]] && echo "Starting port forwarding"
+PF_GATEWAY="$(echo "$wireguard_json" | jq -r '.server_vip')" $_PORT_SCRIPT || exit 20
