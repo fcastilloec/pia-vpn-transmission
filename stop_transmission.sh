@@ -16,6 +16,13 @@ if ! command -v jq &>/dev/null; then
   echo "jq could not be found"; echo "Please install jq"; exit 1
 fi
 
+# Check if the mandatory environment variables are set.
+if [[ -z $NETNS_NAME ]]; then
+  echo "$(basename "$0") script requires:"
+  echo "NETNS_NAME - The name of the namespace"
+  exit 1
+fi
+
 SETTINGS=/home/felipe/.config/transmission/settings.json
 DEFAULT_PORT="62021" # default port when not using VPN
 
@@ -25,22 +32,23 @@ if [[ ! -f $SETTINGS ]]; then
 fi
 
 # Check if running as root/sudo
-[ ${EUID:-$(id -u)} -eq 0 ] || exec sudo DEBUG="$DEBUG" "$0" "$@"
+[ ${EUID:-$(id -u)} -eq 0 ] || exec sudo -E "$(readlink -f "$0")" "$@"
 
 ##########################################
 # Stop transmission-daemon if it's active
 if pidof transmission-daemon > /dev/null; then
-  [[ -n $DEBUG ]] && echo "transmission-daemon is active. Stopping..."
-  kill -9 "$(pidof transmission-daemon)"
+  [[ $DEBUG == true ]] && echo "transmission-daemon is active. Stopping..."
+  # Kill all process inside the namespace or at least just transmission
+  ip netns pids "$NETNS_NAME" | xargs kill -9 > /dev/null 2>&1 || kill -9 "$(pidof transmission-daemon)"
 fi
 
 # Changes port back to its default
 PORT=$(jq -r '."peer-port"' $SETTINGS) # retrieve port from settings file
-[[ -n $DEBUG ]] && echo "VPN port inside Transmission settings file: $PORT"
+[[ $DEBUG == true ]] && echo "VPN port inside Transmission settings file: $PORT"
 
 # Check if port needs modifiying
 if (( PORT == DEFAULT_PORT )); then
-  [[ -n $DEBUG ]] && echo "Port rule is already at default value"
+  [[ $DEBUG == true ]] && echo "Port rule is already at default value"
   exit 0
 fi
 

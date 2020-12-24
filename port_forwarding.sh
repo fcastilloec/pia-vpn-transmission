@@ -17,27 +17,28 @@ trap 'failure ${LINENO} "$BASH_COMMAND"' ERR
 function get_signature_and_payload() {
   local payload_and_signature
   payload_and_signature="$(ip netns exec "$NETNS_NAME" curl -s -m 5 \
-    --connect-to "$PF_HOSTNAME::$PF_GATEWAY:" \
+    --connect-to "$WG_HOSTNAME::$PF_GATEWAY:" \
     --cacert "$CERT" \
     -G --data-urlencode "token=${PIA_TOKEN}" \
-    "https://${PF_HOSTNAME}:19999/getSignature")"
+    "https://${WG_HOSTNAME}:19999/getSignature")"
 
   # Check if the payload and the signature are OK.
   if [ "$(echo "$payload_and_signature" | jq -r '.status')" != "OK" ]; then
     echo "The payload_and_signature variable does not contain an OK status."; exit 1
   fi
 
-  echo "$payload_and_signature" | tee "$PAYLOAD_FILE"
+  echo "$payload_and_signature" | tee "$_PAYLOAD_FILE"
 }
 
 ############### CHECKS ###############
 # Check if the mandatory environment variables are set.
-if [[ -z $PF_GATEWAY || -z $PIA_TOKEN || -z $PF_HOSTNAME || -z $NETNS_NAME ]]; then
+if [[ -z $PF_GATEWAY || -z $CONFIG_DIR || -z $SCRIPTS_DIR || -z $WG_HOSTNAME || -z $NETNS_NAME ]]; then
   echo "$(basename "$0") script requires:"
-  echo "PF_GATEWAY  - the IP of your gateway"
-  echo "PF_HOSTNAME - name of the host used for SSL/TLS certificate verification"
-  echo "PIA_TOKEN   - the token you use to connect to the vpn services"
-  echo "NETNS_NAME  - name of the namespace"
+  echo "PF_GATEWAY     - the IP of your gateway"
+  echo "CONFIG_DIR - Configuration directory for PIA"
+  echo "SCRIPTS_DIR    - Scripts directory for PIA"
+  echo "WG_HOSTNAME    - name of the host used for SSL/TLS certificate verification"
+  echo "NETNS_NAME     - name of the namespace"
   exit 1
 fi
 
@@ -45,51 +46,49 @@ fi
 [ ${EUID:-$(id -u)} -eq 0 ] || exec sudo -E "$(readlink -f "$0")" "$@"
 
 ############### VARIABLES ###############
-BIND_INTERVAL=15 # time in minutes to re-bind the port, otherwise it gets deleted
-PIA_CONFIG_DIR=/home/felipe/.config/pia_vpn
-CERT=$PIA_CONFIG_DIR/ca.rsa.4096.crt
-PAYLOAD_FILE=$PIA_CONFIG_DIR/payload.json
-PORT_LOG=$PIA_CONFIG_DIR/vpnPort.log
-BIND_SCRIPT=/home/felipe/workspace/pia-vpn-transmission/bind_port.sh
+readonly _BIND_INTERVAL=15 # time in minutes to re-bind the port, otherwise it gets deleted
+readonly _PAYLOAD_FILE=$CONFIG_DIR/payload.json
+readonly _PORT_LOG=$CONFIG_DIR/vpnPort.log
+readonly _BIND_SCRIPT=$SCRIPTS_DIR/bind_port.sh
 
 ##########################################
 # Checks that payload file exists
-if [[ -f $PAYLOAD_FILE ]]; then
-  PAYLOAD_AND_SIGNATURE=$(<$PAYLOAD_FILE)
-  expires_at=$(echo "$PAYLOAD_AND_SIGNATURE" | jq -r '.payload' | base64 -d | jq -r '.expires_at' | date +%s -f -)
-  [[ -n $DEBUG ]] && echo "Port will expire on $(date --date="@$expires_at")"
+if [[ -f $_PAYLOAD_FILE ]]; then
+  _PAYLOAD_AND_SIGNATURE=$(<"$_PAYLOAD_FILE")
+  expires_at=$(echo "$_PAYLOAD_AND_SIGNATURE" | jq -r '.payload' | base64 -d | jq -r '.expires_at' | date +%s -f -)
+  [[ $DEBUG == true ]] && echo "Port will expire on $(date --date="@$expires_at")"
 
   # Check if port has expired. It expires in 2 months
   if ((  expires_at < $(date +%s) )); then
-    [[ -n $DEBUG ]] && echo "Payload from file has expired"
-    PAYLOAD_AND_SIGNATURE="$(get_signature_and_payload)"
+    [[ $DEBUG == true ]] && echo "Payload from file has expired"
+    _PAYLOAD_AND_SIGNATURE="$(get_signature_and_payload)"
   fi
 else
-  PAYLOAD_AND_SIGNATURE="$(get_signature_and_payload)"
+  _PAYLOAD_AND_SIGNATURE="$(get_signature_and_payload)"
 fi
-[[ -n $DEBUG ]] && echo "Payload and signature: $PAYLOAD_AND_SIGNATURE"
+[[ $DEBUG == true ]] && echo "Payload and signature: $_PAYLOAD_AND_SIGNATURE"
 
 # We need to get the signature out. It will allow the us to bind the port on the server
-signature="$(echo "$PAYLOAD_AND_SIGNATURE" | jq -r '.signature')"
-[[ -n $DEBUG ]] && echo "The signature: $signature"
+signature="$(echo "$_PAYLOAD_AND_SIGNATURE" | jq -r '.signature')"
+[[ $DEBUG == true ]] && echo "The signature: $signature"
 
 # Extract payload, port and expires_at.
-payload="$(echo "$PAYLOAD_AND_SIGNATURE" | jq -r '.payload')" # The payload has a base64 format
+payload="$(echo "$_PAYLOAD_AND_SIGNATURE" | jq -r '.payload')" # The payload has a base64 format
 port="$(echo "$payload" | base64 -d | jq -r '.port')"
-[[ -n $DEBUG ]] && echo "The port in use is $port"
+[[ $DEBUG == true ]] && echo "The port in use is $port"
 
 # Creates a variable to run the script and use on crontab
-BINDING="PF_HOSTNAME=$PF_HOSTNAME\
+_BINDING="WG_HOSTNAME=$WG_HOSTNAME\
  PF_GATEWAY=$PF_GATEWAY\
  PAYLOAD=$payload\
  SIGNATURE=$signature\
  NETNS_NAME=$NETNS_NAME\
- $BIND_SCRIPT"
+ $_BIND_SCRIPT"
 
-eval "$BINDING" || exit 20 # runs the command store in BINDING
+eval "$_BINDING" || exit 20 # runs the command store in _BINDING
 
-# Set crontab to keep binding the port every BIND_INTERVAL minutes
-minutes=$(seq -s , $(( $(date +"%M") % BIND_INTERVAL )) $BIND_INTERVAL 59) # Calculate 15min from current time
-echo "$minutes * * * * $BINDING >> $PORT_LOG 2>&1" | crontab -u root -
+# Set crontab to keep binding the port every _BIND_INTERVAL minutes
+minutes=$(seq -s , $(( $(date +"%M") % _BIND_INTERVAL )) $_BIND_INTERVAL 59) # Calculate 15min from current time
+echo "$minutes * * * * $_BINDING >> $_PORT_LOG 2>&1" | crontab -u root -
 
-true > $PORT_LOG # empties the log file, so the output is only for the current session
+true > "$_PORT_LOG" # empties the log file, so the output is only for the current session
