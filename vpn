@@ -46,14 +46,14 @@ function vpn_stop() {
   $_TRANSMISSION_STOP_SCRIPT
 
   sudo crontab -r > /dev/null 2>&1 || true # Remove port binding script
-  sudo killall socat > /dev/null 2>&1 || true
+  killall socat > /dev/null 2>&1 || true
 
-  if sudo ip -n "$NETNS_NAME" link show "$WG_LINK" > /dev/null 2>&1; then
+  if ip -n "$NETNS_NAME" link show "$WG_LINK" > /dev/null 2>&1; then
     # Delete the namespace
-    sudo ip netns delete "$NETNS_NAME" > /dev/null 2>&1
+    ip netns delete "$NETNS_NAME" > /dev/null 2>&1
 
     # Delete the DNS
-    sudo resolvconf -d "$WG_LINK" > /dev/null 2>&1
+    resolvconf -d "$WG_LINK" > /dev/null 2>&1
     echo "VPN disconnected"
   else
     echo "Nothing to stop"
@@ -64,10 +64,11 @@ function vpn_stop() {
 # shellcheck disable=SC2120
 function get_ip() {
   local namespace=$1
+  local ip_command="dig TXT +short o-o.myaddr.l.google.com @ns1.google.com | awk -F'\"' '{ print $2}'"
   if [[ -n $namespace ]]; then
-    sudo ip netns exec "$NETNS_NAME" dig TXT +short o-o.myaddr.l.google.com @ns1.google.com | awk -F'"' '{ print $2}'
+    eval "ip netns exec $NETNS_NAME $ip_command"
   else
-    dig TXT +short o-o.myaddr.l.google.com @ns1.google.com | awk -F'"' '{ print $2}'
+    eval "$ip_command"
   fi
 }
 
@@ -78,6 +79,7 @@ check_tool socat socat
 
 ############### VARIABLES ###############
 DEBUG=false
+readonly _ORG_ARG=( "$@" )
 readonly _WAIT_SECONDS=1 # seconds to wait before checking for updated IP
 readonly _MAX_WAIT=12 # It'll wait for SEC times this value, i.e. SEC=5 _MAX_WAIT=12, will wait for 1 minute
 readonly _GEOIP=/home/felipe/.config/geoip/database/GeoLite2-City.mmdb # database for status info
@@ -121,7 +123,9 @@ done
 readonly DEBUG
 export DEBUG
 
-# Checks for correct amount of parameters and assignes them
+[ ${EUID:-$(id -u)} -eq 0 ] || exec sudo -E "$(readlink -f "$0")" "${_ORG_ARG[@]}"
+
+# Checks for correct amount of parameters and assigns them
 if (( ${#params[@]} > 2 )); then printf "\e[31m%s\e[0m\n" "A max of two parameters can be passed"; exit 1; fi
 readonly options=${params[0]}
 readonly server=${params[1]}
@@ -150,9 +154,9 @@ export SERVER_ID
 case $options in
   start)
     # Check if we should stop any existing connections
-    if sudo ip -n "$NETNS_NAME" link show $WG_LINK > /dev/null 2>&1; then
+    if ip -n "$NETNS_NAME" link show $WG_LINK > /dev/null 2>&1; then
       read -r -n 1 -p "Do you want to stop the current connection before starting a new one? [Y/n] " stop
-      [[ -n $stop ]] && printf "\n" # prints an emtpy line only when non-empty input
+      [[ -n $stop ]] && printf "\n" # prints an empty line only when non-empty input
       stop=${stop:-y} # if empty, replace with 'y'
       if [[ $stop == "y" ]]; then vpn_stop; else exit 0; fi
     fi
@@ -188,7 +192,7 @@ case $options in
     vpn_stop
     ;;
   status | "")
-    if ! sudo ip -n "$NETNS_NAME" link show $WG_LINK > /dev/null 2>&1; then echo "VPN is disconnected"; exit; fi
+    if ! ip -n "$NETNS_NAME" link show $WG_LINK > /dev/null 2>&1; then echo "VPN is disconnected"; exit; fi
     vpn_ip=$(get_ip true)
     location=$($_MMDBINSPECT -db $_GEOIP "$vpn_ip" | jq '.[].Records[].Record | .city.names.en + " "  + .subdivisions[].iso_code  + ", " + .country.names.en')
     echo "Connected to $location. Your public IP is $vpn_ip"
