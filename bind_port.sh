@@ -15,8 +15,9 @@ trap 'failure ${LINENO} "$BASH_COMMAND"' ERR
 [ ${EUID:-$(id -u)} -eq 0 ] || exec sudo -E "$(readlink -f "$0")" "$@"
 
 # Check if the mandatory environment variables are set.
-if [[ -z $WG_HOSTNAME || -z $PAYLOAD || -z $SIGNATURE || -z $PF_GATEWAY || -z $NETNS_NAME ]]; then
+if [[ -z $CONFIG_DIR || -z $WG_HOSTNAME || -z $PAYLOAD || -z $SIGNATURE || -z $PF_GATEWAY || -z $NETNS_NAME ]]; then
   echo "$(basename "$0") script requires:"
+  echo "CONFIG_DIR  - The configuration directory"
   echo "WG_HOSTNAME - name of the host used for SSL/TLS certificate verification"
   echo "PAYLOAD     - the payload for port forwarding"
   echo "SIGNATURE   - the signature to authenticate port forwarding"
@@ -26,8 +27,14 @@ if [[ -z $WG_HOSTNAME || -z $PAYLOAD || -z $SIGNATURE || -z $PF_GATEWAY || -z $N
 fi
 
 ############### VARIABLES ###############
-_CONFIG_DIR=/home/felipe/.config/pia_vpn
-_CERT=$_CONFIG_DIR/ca.rsa.4096.crt
+_CERT=$CONFIG_DIR/ca.rsa.4096.crt
+
+############### CHECKS ###############
+if ! ip netns list | grep -q "$NETNS_NAME"; then
+  # Remove port binding script
+  crontab -l | grep -v "$(readlink -f "$0")" | crontab -u root -
+  exit 0
+fi
 
 ############### BINDING ###############
 bind_port_response="$(ip netns exec "$NETNS_NAME" curl -Gs -m 5 \
@@ -41,5 +48,3 @@ if [ "$(echo "$bind_port_response" | jq -r '.status')" != "OK" ]; then
   echo "$(date) ERROR: $(echo "$bind_port_response" | jq -r '.status')"
   exit 1
 fi
-
-# echo "Port refreshed on $(date)"

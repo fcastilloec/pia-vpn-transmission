@@ -78,7 +78,8 @@ port="$(echo "$payload" | base64 -d | jq -r '.port')"
 [[ $DEBUG == true ]] && echo "The port in use is $port"
 
 # Creates a variable to run the script and use on crontab
-_BINDING="WG_HOSTNAME=$WG_HOSTNAME\
+_BINDING="CONFIG_DIR=$CONFIG_DIR\
+ WG_HOSTNAME=$WG_HOSTNAME\
  PF_GATEWAY=$PF_GATEWAY\
  PAYLOAD=$payload\
  SIGNATURE=$signature\
