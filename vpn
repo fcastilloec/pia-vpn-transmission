@@ -45,7 +45,8 @@ function vpn_stop() {
   # Stop Transmission first
   $_TRANSMISSION_STOP_SCRIPT
 
-  sudo crontab -r > /dev/null 2>&1 || true # Remove port binding script
+  # Remove port binding script
+  crontab -l | grep -v "$_BIND_SCRIPT" | crontab -u root -
   killall socat > /dev/null 2>&1 || true
 
   if ip -n "$NETNS_NAME" link show "$WG_LINK" > /dev/null 2>&1; then
@@ -96,6 +97,7 @@ export WG_LINK
 
 # Necessary scripts
 readonly SCRIPTS_DIR=/home/felipe/workspace/pia-vpn-transmission
+readonly _BIND_SCRIPT=$SCRIPTS_DIR/bind_port.sh
 readonly _VPN_START_SCRIPT=$SCRIPTS_DIR/get_token.sh
 readonly _TRANSMISSION_START_SCRIPT=$SCRIPTS_DIR/start_transmission.sh
 readonly _TRANSMISSION_STOP_SCRIPT=$SCRIPTS_DIR/stop_transmission.sh
