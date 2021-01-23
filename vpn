@@ -1,4 +1,10 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC1090
+# spell-checker: disable
+###################################################################################
+# exports: CONFIG_DIR, AUTH_FILE, CERT, NETNS_NAME, WG_LINK, SCRIPTS_DIR, PIA_PF
+#          DEBUG, SERVER_ID
+###################################################################################
 
 set -eE
 failure() {
@@ -43,7 +49,7 @@ function print_help() {
 # Stops the VPN
 function vpn_stop() {
   # Stop Transmission first
-  $_TRANSMISSION_STOP_SCRIPT
+  $_TRANSMISSION_STOP_SCRIPT || exit 10
 
   # Remove port binding script
   crontab -l | grep -v "$_BIND_SCRIPT" | crontab -u root -
@@ -61,15 +67,61 @@ function vpn_stop() {
   fi
 }
 
+function vpn_start() {
+  local ip_public; local ip_vpn; local count
+  # Check if we should stop any existing connections
+  if ip -n "$NETNS_NAME" link show "$WG_LINK" > /dev/null 2>&1; then
+    read -r -n 1 -p "Do you want to stop the current connection before starting a new one? [Y/n] " stop
+    if [[ -n $stop ]]; then printf "\n"; fi # prints an empty line only when non-empty input
+    stop=${stop:-y} # if empty, replace with 'y'
+    if [[ $stop == "y" ]]; then vpn_stop; else exit 0; fi
+  fi
+
+  ip_public=$(get_ip) # Get IP before VPN
+  if [[ $DEBUG == true ]]; then echo "IP before VPN: $ip_public"; fi
+  ip_vpn="$ip_public" # Initiate the variable for while loop
+
+  # ---- CONNECTING CODE: START ---- #
+  if [[ $DEBUG == true ]]; then echo "Getting region data"; fi
+  . "$_GET_REGION" || exit 10
+  if [[ $DEBUG == true ]]; then echo "Getting token"; fi
+  . "$_GET_TOKEN" || exit 10
+  if [[ $DEBUG == true ]]; then echo "Connecting to Wireguard"; fi
+  . "$_CONNECT_SCRIPT" || exit 10
+  # ---- CONNECTING CODE: END ---- #
+
+  # Check and wait for new IP
+  echo "Connected! Checking for new IP address...."
+  count=1 # Doesn't let the while loop run forever
+  while [[ $ip_vpn == "$ip_public" ]] && (( count <= _MAX_WAIT )); do
+    sleep "$_WAIT_SECONDS" # Wait before checking for new IP
+    ip_vpn=$(get_ip true) # Get IP after VPN
+    if [[ $DEBUG == true ]]; then printf "%d check for new IP\n" "$count"; fi
+    (( count++ ))
+  done
+
+  if [[ $ip_vpn == "$ip_public" ]]; then
+    echo "You're IP hasn't changed after $((_MAX_WAIT * SEC)) seconds. Disconnecting VPN..."
+    vpn_stop
+    exit
+  fi
+  echo "Your new public IP is $ip_vpn"
+
+  if [[ $PIA_PF == true ]]; then
+    if [[ $DEBUG == true ]]; then echo "Starting port forwarding"; fi
+    $_PORT_SCRIPT || exit 10
+    # Starts Transmission if port forwarding is enabled
+    $_TRANSMISSION_START_SCRIPT || exit 10
+  fi
+}
+
 # Retrieves the Public IP
-# shellcheck disable=SC2120
 function get_ip() {
   local namespace=$1
-  local ip_command="dig TXT +short o-o.myaddr.l.google.com @ns1.google.com | awk -F'\"' '{ print $2}'"
   if [[ -n $namespace ]]; then
-    eval "ip netns exec $NETNS_NAME $ip_command"
+    ip netns exec "$NETNS_NAME" dig TXT +short o-o.myaddr.l.google.com @ns1.google.com | awk -F'\"' '{ print $2}'
   else
-    eval "$ip_command"
+    dig TXT +short o-o.myaddr.l.google.com @ns1.google.com | awk -F'\"' '{ print $2}'
   fi
 }
 
@@ -97,15 +149,18 @@ export WG_LINK
 
 # Necessary scripts
 readonly SCRIPTS_DIR=/home/felipe/workspace/pia-vpn-transmission
+readonly _GET_REGION=$SCRIPTS_DIR/get_region.sh
+readonly _GET_TOKEN=$SCRIPTS_DIR/get_token.sh
+readonly _CONNECT_SCRIPT=$SCRIPTS_DIR/connect_to_wg.sh
+readonly _PORT_SCRIPT=$SCRIPTS_DIR/port_forwarding.sh
 readonly _BIND_SCRIPT=$SCRIPTS_DIR/bind_port.sh
-readonly _VPN_START_SCRIPT=$SCRIPTS_DIR/get_token.sh
 readonly _TRANSMISSION_START_SCRIPT=$SCRIPTS_DIR/start_transmission.sh
 readonly _TRANSMISSION_STOP_SCRIPT=$SCRIPTS_DIR/stop_transmission.sh
 readonly _MMDBINSPECT=/home/felipe/go/bin/mmdbinspect
 export SCRIPTS_DIR
 
 # Default to always forward port unless option to not do so was passed
-[[ $PIA_PF != "false" ]] && PIA_PF="true"
+if [[ $PIA_PF != "false" ]]; then PIA_PF="true"; fi
 export PIA_PF
 
 ############### SCRIPT OPTIONS ###############
@@ -125,6 +180,7 @@ done
 readonly DEBUG
 export DEBUG
 
+# Check the script is running as root
 [ ${EUID:-$(id -u)} -eq 0 ] || exec sudo -E "$(readlink -f "$0")" "${_ORG_ARG[@]}"
 
 # Checks for correct amount of parameters and assigns them
@@ -139,65 +195,34 @@ fi
 
 # Assigns the correct server ID
 case $server in
-  van | "") city="Vancouver, Canada"; SERVER_ID="ca_vancouver";;
-  ont) city="Ontario, Canada"; SERVER_ID="ca_ontario";;
-  mtl) city="Montreal, Canada"; SERVER_ID="ca";;
-  tor) city="Toronto, Canada"; SERVER_ID="ca_toronto";;
-  ber) city="Berlin, Germany"; SERVER_ID="ca_toronto";;
-  frk) city="Frankfurt, Germany"; SERVER_ID="de-frankfurt";;
-  fra) city="France"; SERVER_ID="france";;
-  sea) city="Seattle, US"; SERVER_ID="us_seattle";;
+  van | "") SERVER_ID="ca_vancouver";;
+  ont) SERVER_ID="ca_ontario";;
+  mtl) SERVER_ID="ca";;
+  tor) SERVER_ID="ca_toronto";;
+  ber) SERVER_ID="ca_toronto";;
+  frk) SERVER_ID="de-frankfurt";;
+  fra) SERVER_ID="france";;
+  sea) SERVER_ID="us_seattle";;
   *) printf "\e[31m%s\e[0m\n" "Unrecognized server"; exit 1;;
 esac
 readonly SERVER_ID
 export SERVER_ID
 
+if [[ $DEBUG == true ]]; then echo "SERVER_ID: $SERVER_ID"; fi
+
 ###########################################
 case $options in
   start)
-    # Check if we should stop any existing connections
-    if ip -n "$NETNS_NAME" link show $WG_LINK > /dev/null 2>&1; then
-      read -r -n 1 -p "Do you want to stop the current connection before starting a new one? [Y/n] " stop
-      [[ -n $stop ]] && printf "\n" # prints an empty line only when non-empty input
-      stop=${stop:-y} # if empty, replace with 'y'
-      if [[ $stop == "y" ]]; then vpn_stop; else exit 0; fi
-    fi
-
-    readonly ip=$(get_ip) # Get IP before VPN
-    if [[ $DEBUG == true ]]; then echo "IP before VPN: $ip"; fi
-    vpn_ip="$ip" # Initiate the variable for while loop
-
-    # Connects to the VPN
-    $_VPN_START_SCRIPT || exit 10
-
-    # Check and wait for new IP
-    echo "Connected. Checking for new IP address...."
-    count=1 # Doesn't let the while loop run forever
-    while [[ $vpn_ip == "$ip" ]] && (( count <= _MAX_WAIT )); do
-      sleep $_WAIT_SECONDS # Wait before checking for new IP
-      vpn_ip=$(get_ip true) # Get IP after VPN
-      if [[ $DEBUG == true ]]; then printf "%d check for new IP\n" "$count"; fi
-      (( count++ ))
-    done
-
-    if [[ $vpn_ip == "$ip" ]]; then
-      echo "You're IP hasn't changed after $((_MAX_WAIT * SEC)) seconds. Disconnecting VPN..."
-      vpn_stop
-      exit
-    fi
-    echo "Connected to $city. Your new public IP is $vpn_ip"
-
-    # Starts Transmission if port forwarding is enabled
-    [[ $PIA_PF == "true" ]] && $_TRANSMISSION_START_SCRIPT
+    vpn_start
     ;;
   stop)
     vpn_stop
     ;;
   status | "")
     if ! ip -n "$NETNS_NAME" link show $WG_LINK > /dev/null 2>&1; then echo "VPN is disconnected"; exit; fi
-    vpn_ip=$(get_ip true)
-    location=$($_MMDBINSPECT -db $_GEOIP "$vpn_ip" | jq '.[].Records[].Record | .city.names.en + " "  + .subdivisions[].iso_code  + ", " + .country.names.en')
-    echo "Connected to $location. Your public IP is $vpn_ip"
+    ip_vpn=$(get_ip true)
+    location=$($_MMDBINSPECT -db $_GEOIP "$ip_vpn" | jq '.[].Records[].Record | .city.names.en + " "  + .subdivisions[].iso_code  + ", " + .country.names.en')
+    echo "Connected to $location. Your public IP is $ip_vpn"
     ;;
   *)
     print_help

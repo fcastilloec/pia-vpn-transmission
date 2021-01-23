@@ -37,25 +37,22 @@ fi
 ##########################################
 # Stop transmission-daemon if it's active
 if pidof transmission-daemon > /dev/null; then
-  [[ $DEBUG == true ]] && echo "transmission-daemon is active. Stopping..."
+  if [[ $DEBUG == true ]]; then echo "transmission-daemon is active. Stopping..."; fi
   # Kill all process inside the namespace or at least just transmission
   ip netns pids "$NETNS_NAME" | xargs kill -9 > /dev/null 2>&1 || kill -9 "$(pidof transmission-daemon)"
 fi
 
 # Changes port back to its default
 PORT=$(jq -r '."peer-port"' $SETTINGS) # retrieve port from settings file
-[[ $DEBUG == true ]] && echo "VPN port inside Transmission settings file: $PORT"
+if [[ $DEBUG == true ]]; then echo "VPN port inside Transmission settings file: $PORT"; fi
 
-# Check if port needs modifiying
+# Check if port needs modifying
 if (( PORT == DEFAULT_PORT )); then
-  [[ $DEBUG == true ]] && echo "Port rule is already at default value"
+  if [[ $DEBUG == true ]]; then echo "Port rule is already at default value"; fi
   exit 0
 fi
 
 tempSettings=$(jq '."peer-port"'="$DEFAULT_PORT" $SETTINGS)
 printf "%s" "$tempSettings" > $SETTINGS
 
-# deletes UFW rule of VPN port
-# ufw delete allow "$PORT/tcp" > /dev/null
-
-echo "Port rule back to default value"
+if [[ $DEBUG == true ]]; then echo "Port rule back to default value"; fi

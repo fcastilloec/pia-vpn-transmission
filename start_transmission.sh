@@ -7,7 +7,7 @@
 set -eE
 failure() {
   local lineno=$1; local msg=$2
-  [[ "$-" =~ .*e.* ]] && echo "$(basename "$0"): failed at $lineno: $msg"
+  echo "$(basename "$0"): failed at $lineno: $msg"
 }
 trap 'failure ${LINENO} "$BASH_COMMAND"' ERR
 
@@ -49,7 +49,7 @@ printf "%s" "$tempSettings" > $SETTINGS
 
 # Adds the port to UFW
 # ufw allow "$PORT/tcp" > /dev/null
-echo "VPN port forwarded, port $PORT is being used"
+if [[ $DEBUG == true ]]; then echo "VPN port forwarded, port $PORT is being used"; fi
 
 # Re-start transmission
 ip netns exec "$NETNS_NAME" sudo -u felipe /usr/bin/transmission-daemon -g /home/felipe/.config/transmission

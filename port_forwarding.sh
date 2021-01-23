@@ -56,26 +56,26 @@ readonly _BIND_SCRIPT=$SCRIPTS_DIR/bind_port.sh
 if [[ -f $_PAYLOAD_FILE ]]; then
   _PAYLOAD_AND_SIGNATURE=$(<"$_PAYLOAD_FILE")
   expires_at=$(echo "$_PAYLOAD_AND_SIGNATURE" | jq -r '.payload' | base64 -d | jq -r '.expires_at' | date +%s -f -)
-  [[ $DEBUG == true ]] && echo "Port will expire on $(date --date="@$expires_at")"
+  if [[ $DEBUG == true ]]; then echo "Port will expire on $(date --date="@$expires_at")"; fi
 
   # Check if port has expired. It expires in 2 months
   if ((  expires_at < $(date +%s) )); then
-    [[ $DEBUG == true ]] && echo "Payload from file has expired"
+    if [[ $DEBUG == true ]]; then echo "Payload from file has expired"; fi
     _PAYLOAD_AND_SIGNATURE="$(get_signature_and_payload)"
   fi
 else
   _PAYLOAD_AND_SIGNATURE="$(get_signature_and_payload)"
 fi
-[[ $DEBUG == true ]] && echo "Payload and signature: $_PAYLOAD_AND_SIGNATURE"
+if [[ $DEBUG == true ]]; then echo "Payload and signature: $_PAYLOAD_AND_SIGNATURE"; fi
 
 # We need to get the signature out. It will allow the us to bind the port on the server
 signature="$(echo "$_PAYLOAD_AND_SIGNATURE" | jq -r '.signature')"
-[[ $DEBUG == true ]] && echo "The signature: $signature"
+if [[ $DEBUG == true ]]; then echo "The signature: $signature"; fi
 
 # Extract payload, port and expires_at.
 payload="$(echo "$_PAYLOAD_AND_SIGNATURE" | jq -r '.payload')" # The payload has a base64 format
 port="$(echo "$payload" | base64 -d | jq -r '.port')"
-[[ $DEBUG == true ]] && echo "The port in use is $port"
+if [[ $DEBUG == true ]]; then echo "The port in use is $port"; fi
 
 # Creates a variable to run the script and use on crontab
 _BINDING="CONFIG_DIR=$CONFIG_DIR\

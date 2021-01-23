@@ -2,6 +2,8 @@
 ###################################################################################
 # Script connects to specified wireguard server.
 # If port forwarding is enabled, it calls the script to start it.
+#
+# exports: PF_GATEWAY
 ###################################################################################
 
 set -eE
@@ -28,14 +30,13 @@ check_tool curl curl
 check_tool jq jq
 
 # Check if the mandatory environment variables are set.
-if [[ -z $WG_SERVER_IP || -z $WG_HOSTNAME || -z $PIA_TOKEN || -z $NETNS_NAME
- || -z $WG_LINK ]]; then
+if [[ -z $WG_SERVER_IP || -z $WG_HOSTNAME || -z $PIA_TOKEN || -z $NETNS_NAME || -z $WG_LINK ]]; then
   echo "$(basename "$0") script requires:"
   echo "WG_SERVER_IP - IP that you want to connect to"
   echo "WG_HOSTNAME  - name of the server, required for ssl"
   echo "PIA_TOKEN    - your authentication token"
   echo "NETNS_NAME   - name of the namespace"
-  echo "PIA_PF       - [OPTIONAL] enable port forwarding (true by default)"
+  echo "WG_LINK      - name of the Wireguard link, which is also the name of the wireguard file"
   exit 1
 fi
 
@@ -44,13 +45,12 @@ fi
 
 # Check if namespace already exists, if so delete it
 if ip netns list | grep -q "$NETNS_NAME"; then
-  [[ $DEBUG == true ]] && echo "Namespace $NETNS_NAME already exists, deleting it"
+  if [[ $DEBUG == true ]]; then echo "Namespace $NETNS_NAME already exists, deleting it"; fi
   ip netns delete "$NETNS_NAME"
 fi
 
 ############### VARIABLES ###############
 readonly _DEFAULT_DNS="1.1.1.1"
-readonly _PORT_SCRIPT=$SCRIPTS_DIR/port_forwarding.sh
 readonly private_key="$(wg genkey)"
 readonly public_key="$(echo "$private_key" | wg pubkey)"
 
@@ -63,7 +63,7 @@ wireguard_json="$(curl -s -G \
   --data-urlencode "pt=${PIA_TOKEN}" \
   --data-urlencode "pubkey=$public_key" \
   "https://${WG_HOSTNAME}:1337/addKey" )"
-[[ $DEBUG == true ]] && echo "WireGuard response: $wireguard_json"
+if [[ $DEBUG == true ]]; then echo "WireGuard response: $wireguard_json"; fi
 
 # Check if the API returned OK and stop this script if it didn't.
 if [ "$(echo "$wireguard_json" | jq -r '.status')" != "OK" ]; then
@@ -75,7 +75,7 @@ fi
 readonly wg_address="$(echo "$wireguard_json" | jq -r '.peer_ip')"
 
 # Create the WireGuard config based on the JSON received from the API
-[[ $DEBUG == true ]] && echo "Creating WireGuard config based on JSON received"
+if [[ $DEBUG == true ]]; then echo "Creating WireGuard config based on JSON received"; fi
 mkdir -p /etc/wireguard
 echo "\
 [Interface]
@@ -89,7 +89,7 @@ Endpoint = ${WG_SERVER_IP}:$(echo "$wireguard_json" | jq -r '.server_port')
 " | sudo -u felipe tee "$CONFIG_DIR/$WG_LINK.conf" > /dev/null || exit 1
 
 ############### NAMESPACE ###############
-[[ $DEBUG == true ]] && echo "Starting WireGuard interface..."
+if [[ $DEBUG == true ]]; then echo "Starting WireGuard interface..."; fi
 
 # Create wireguard interface
 ip link add "$WG_LINK" type wireguard
@@ -116,9 +116,5 @@ ip -n "$NETNS_NAME" route add default dev "$WG_LINK"
 # dnsServer="$(echo "$wireguard_json" | jq -r '.dns_servers[0]')"
 echo "nameserver $_DEFAULT_DNS" | ip netns exec "$NETNS_NAME" resolvconf -a "$WG_LINK" -m 0 -x > /dev/null 2>&1
 
-# Stop the script if PIA_PF is not set to "true".
-[[ $PIA_PF != true ]] && exit
-
-# Start port forwarding and make sure it runs under my user
-[[ $DEBUG == true ]] && echo "Starting port forwarding"
-PF_GATEWAY="$(echo "$wireguard_json" | jq -r '.server_vip')" $_PORT_SCRIPT || exit 20
+PF_GATEWAY="$(echo "$wireguard_json" | jq -r '.server_vip')"
+export PF_GATEWAY
