@@ -51,9 +51,12 @@ printf "%s" "$tempSettings" > $SETTINGS
 # ufw allow "$PORT/tcp" > /dev/null
 if [[ $DEBUG == true ]]; then echo "VPN port forwarded, port $PORT is being used"; fi
 
-# Re-start transmission
-ip netns exec "$NETNS_NAME" sudo -u felipe /usr/bin/transmission-daemon -g /home/felipe/.config/transmission
+# Restart transmission
+ip netns exec "$NETNS_NAME"\
+ /usr/bin/transmission-daemon --log-error\
+ --config-dir /home/felipe/.config/transmission\
+ --logfile /var/log/transmission.log
 
 # Start redirection to access web interface
-socat tcp-listen:9091,fork,reuseaddr \
+socat tcp-listen:9091,fork,reuseaddr\
   exec:"ip netns exec $NETNS_NAME socat STDIO \"tcp-connect:127.0.0.1:9091\"",nofork > /dev/null 2>&1 &
