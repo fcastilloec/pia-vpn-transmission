@@ -89,7 +89,7 @@ _BINDING="CONFIG_DIR=$CONFIG_DIR\
 eval "$_BINDING" || exit 20 # runs the command store in _BINDING
 
 # Set crontab to keep binding the port every _BIND_INTERVAL minutes
-minutes=$(seq -s , $(( $(date +"%M") % _BIND_INTERVAL )) $_BIND_INTERVAL 59) # Calculate 15min from current time
+minutes=$(seq -s , $(( $(date +"%-M") % _BIND_INTERVAL )) $_BIND_INTERVAL 59) # Calculate 15min from current time
 echo "$minutes * * * * $_BINDING >> $_PORT_LOG 2>&1" | crontab -u root -
 
 true > "$_PORT_LOG" # empties the log file, so the output is only for the current session
