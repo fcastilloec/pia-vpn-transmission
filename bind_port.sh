@@ -6,7 +6,7 @@
 set -eE
 failure() {
   local lineno=$1; local msg=$2
-  echo "$(basename "$0"): failed at $lineno: $msg"
+  echo "$(date --rfc-3339=seconds) - ERROR - failed at line $lineno - $msg"
 }
 trap 'failure ${LINENO} "$BASH_COMMAND"' ERR
 
@@ -31,20 +31,20 @@ _CERT=$CONFIG_DIR/ca.rsa.4096.crt
 
 ############### CHECKS ###############
 if ! ip netns list | grep -q "$NETNS_NAME"; then
-  # Remove port binding script
+  # Remove port binding script only
   crontab -l | grep -v "$(readlink -f "$0")" | crontab -u root -
   exit 0
 fi
 
 ############### BINDING ###############
 bind_port_response="$(ip netns exec "$NETNS_NAME" curl -Gs -m 5 \
-  --connect-to "$WG_HOSTNAME::$PF_GATEWAY:" \
-  --cacert "$_CERT" \
-  --data-urlencode "payload=${PAYLOAD}" \
-  --data-urlencode "signature=${SIGNATURE}" \
-  "https://${WG_HOSTNAME}:19999/bindPort")"
+--connect-to "$WG_HOSTNAME::$PF_GATEWAY:" \
+--cacert "$_CERT" \
+--data-urlencode "payload=${PAYLOAD}" \
+--data-urlencode "signature=${SIGNATURE}" \
+"https://${WG_HOSTNAME}:19999/bindPort")"
 
 if [ "$(echo "$bind_port_response" | jq -r '.status')" != "OK" ]; then
-  echo "$(date) ERROR: $(echo "$bind_port_response" | jq -r '.status')"
+  echo "$(date --rfc-3339=seconds) - ERROR - response was not 'OK' - $(echo "$bind_port_response" | jq -r '.status')"
   exit 1
 fi
