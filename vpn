@@ -2,8 +2,8 @@
 # shellcheck disable=SC1090
 # spell-checker: disable
 ###################################################################################
-# exports: CONFIG_DIR, AUTH_FILE, CERT, NETNS_NAME, WG_LINK, SCRIPTS_DIR, PIA_PF
-#          DEBUG, SERVER_ID
+# exports: CONFIG_DIR, AUTH_FILE, CERT, NETNS_NAME, WG_LINK, _SCRIPTS_DIR, PIA_PF
+#          DEBUG, SERVER_ID, PAYLOAD_FILE, BIND_SCRIPT
 ###################################################################################
 
 set -eE
@@ -52,7 +52,7 @@ function vpn_stop() {
   $_TRANSMISSION_STOP_SCRIPT || exit 10
 
   # Remove port binding script
-  crontab -l | grep -v "$_BIND_SCRIPT" | crontab -u root -
+  crontab -l | grep -v "$BIND_SCRIPT" | crontab -u root -
   killall socat > /dev/null 2>&1 || true
 
   if ip -n "$NETNS_NAME" link show "$WG_LINK" > /dev/null 2>&1; then
@@ -138,26 +138,28 @@ readonly _MAX_WAIT=12 # It'll wait for SEC times this value, i.e. SEC=5 _MAX_WAI
 readonly _GEOIP=/home/felipe/.config/geoip/database/GeoLite2-City.mmdb # database for status info
 readonly CONFIG_DIR=/home/felipe/.config/pia_vpn
 readonly AUTH_FILE=$CONFIG_DIR/passwd # PIA username and password
-readonly CERT=$CONFIG_DIR/ca.rsa.4096.crt
+readonly PAYLOAD_FILE=$CONFIG_DIR/payload.json # PIA's payload response for port forwarding
+readonly CERT=$CONFIG_DIR/ca.rsa.4096.crt # PIA certificate
 readonly NETNS_NAME=piaVPN # name of the namespace
 readonly WG_LINK=piaWg
 export CONFIG_DIR
 export AUTH_FILE
+export PAYLOAD_FILE
 export CERT
 export NETNS_NAME
 export WG_LINK
 
 # Necessary scripts
-readonly SCRIPTS_DIR=/home/felipe/workspace/pia-vpn-transmission
-readonly _GET_REGION=$SCRIPTS_DIR/get_region.sh
-readonly _GET_TOKEN=$SCRIPTS_DIR/get_token.sh
-readonly _CONNECT_SCRIPT=$SCRIPTS_DIR/connect_to_wg.sh
-readonly _PORT_SCRIPT=$SCRIPTS_DIR/port_forwarding.sh
-readonly _BIND_SCRIPT=$SCRIPTS_DIR/bind_port.sh
-readonly _TRANSMISSION_START_SCRIPT=$SCRIPTS_DIR/start_transmission.sh
-readonly _TRANSMISSION_STOP_SCRIPT=$SCRIPTS_DIR/stop_transmission.sh
+readonly _SCRIPTS_DIR=/home/felipe/workspace/pia-vpn-transmission
+readonly _GET_REGION=$_SCRIPTS_DIR/get_region.sh
+readonly _GET_TOKEN=$_SCRIPTS_DIR/get_token.sh
+readonly _CONNECT_SCRIPT=$_SCRIPTS_DIR/connect_to_wg.sh
+readonly _PORT_SCRIPT=$_SCRIPTS_DIR/port_forwarding.sh
+readonly _TRANSMISSION_START_SCRIPT=$_SCRIPTS_DIR/start_transmission.sh
+readonly _TRANSMISSION_STOP_SCRIPT=$_SCRIPTS_DIR/stop_transmission.sh
 readonly _MMDBINSPECT=/home/felipe/go/bin/mmdbinspect
-export SCRIPTS_DIR
+readonly BIND_SCRIPT=$_SCRIPTS_DIR/bind_port.sh
+export BIND_SCRIPT
 
 # Default to always forward port unless option to not do so was passed
 if [[ $PIA_PF != "false" ]]; then PIA_PF="true"; fi
