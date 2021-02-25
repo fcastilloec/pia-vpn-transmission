@@ -86,7 +86,7 @@ PersistentKeepalive = 25
 PublicKey = $(echo "$wireguard_json" | jq -r '.server_key')
 AllowedIPs = 0.0.0.0/0
 Endpoint = ${WG_SERVER_IP}:$(echo "$wireguard_json" | jq -r '.server_port')
-" | sudo -u felipe tee "$CONFIG_DIR/$WG_LINK.conf" > /dev/null || exit 1
+" > "$CONFIG_DIR/$WG_LINK.conf"
 
 ############### NAMESPACE ###############
 if [[ $DEBUG == true ]]; then echo "Starting WireGuard interface..."; fi
