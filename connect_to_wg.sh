@@ -9,7 +9,7 @@
 set -eE
 failure() {
   local lineno=$1; local msg=$2
-  echo "$(basename "$0"): failed at $lineno: $msg"
+  echo "$(basename "$0"): failed at ${lineno}: ${msg}"
 }
 trap 'failure ${LINENO} "$BASH_COMMAND"' ERR
 
@@ -17,8 +17,8 @@ trap 'failure ${LINENO} "$BASH_COMMAND"' ERR
 # Checks if the required tools have been installed.
 function check_tool() {
   local cmd=$1; local package=$2
-  if ! command -v "$cmd" &>/dev/null; then
-    echo "$cmd could not be found"; echo "Please install $package"
+  if ! command -v "${cmd}" &>/dev/null; then
+    echo "${cmd} could not be found"; echo "Please install ${package}"
     exit 1
   fi
 }
@@ -29,92 +29,83 @@ check_tool wg wireguard-tools
 check_tool curl curl
 check_tool jq jq
 
-# Check if the mandatory environment variables are set.
-if [[ -z $WG_SERVER_IP || -z $WG_HOSTNAME || -z $PIA_TOKEN || -z $NETNS_NAME || -z $WG_LINK ]]; then
-  echo "$(basename "$0") script requires:"
-  echo "WG_SERVER_IP - IP that you want to connect to"
-  echo "WG_HOSTNAME  - name of the server, required for ssl"
-  echo "PIA_TOKEN    - your authentication token"
-  echo "NETNS_NAME   - name of the namespace"
-  echo "WG_LINK      - name of the Wireguard link, which is also the name of the wireguard file"
-  exit 1
-fi
-
 # Check if running as root/sudo
-[ ${EUID:-$(id -u)} -eq 0 ] || exec sudo -E "$(readlink -f "$0")" "$@"
+[ "${EUID:-$(id -u)}" -eq 0 ] || exec sudo -E "$(readlink -f "$0")" "$@"
+
+_debug=${DEBUG:-false}
 
 # Check if namespace already exists, if so delete it
-if ip netns list | grep -q "$NETNS_NAME"; then
-  if [[ $DEBUG == true ]]; then echo "Namespace $NETNS_NAME already exists, deleting it"; fi
-  ip netns delete "$NETNS_NAME"
+if ip netns list | grep -q "${NETNS_NAME:?}"; then
+  if [[ ${_debug} == true ]]; then echo "Namespace ${NETNS_NAME} already exists, deleting it"; fi
+  ip netns delete "${NETNS_NAME}"
 fi
 
 ############### VARIABLES ###############
-readonly _DEFAULT_DNS="1.1.1.1"
+readonly default_dns="1.1.1.1"
 readonly private_key="$(wg genkey)"
-readonly public_key="$(echo "$private_key" | wg pubkey)"
+readonly public_key="$(echo "${private_key}" | wg pubkey)"
 
 ############### WIREGUARD CONFIG ###############
 # Authenticate via the PIA WireGuard RESTful API.
 # This will return a JSON with data required for authentication.
 wireguard_json="$(curl -s -G \
-  --connect-to "$WG_HOSTNAME::$WG_SERVER_IP:" \
-  --cacert "$CERT" \
-  --data-urlencode "pt=${PIA_TOKEN}" \
-  --data-urlencode "pubkey=$public_key" \
+  --connect-to "${WG_HOSTNAME:?}::${WG_SERVER_IP:?}:" \
+  --cacert "${CERT:?}" \
+  --data-urlencode "pt=${PIA_TOKEN:?}" \
+  --data-urlencode "pubkey=${public_key}" \
   "https://${WG_HOSTNAME}:1337/addKey" )"
-if [[ $DEBUG == true ]]; then echo "WireGuard response: $wireguard_json"; fi
+if [[ ${_debug} == true ]]; then echo "WireGuard response: ${wireguard_json}"; fi
 
 # Check if the API returned OK and stop this script if it didn't.
-if [ "$(echo "$wireguard_json" | jq -r '.status')" != "OK" ]; then
+if [ "$(echo "${wireguard_json}" | jq -r '.status')" != "OK" ]; then
   >&2 echo "Server did not return OK. Stopping now."
   exit 1
 fi
 
 # Set IP address of interface
-readonly wg_address="$(echo "$wireguard_json" | jq -r '.peer_ip')"
+readonly wg_address="$(echo "${wireguard_json}" | jq -r '.peer_ip')"
 
 # Create the WireGuard config based on the JSON received from the API
-if [[ $DEBUG == true ]]; then echo "Creating WireGuard config based on JSON received"; fi
+if [[ ${_debug} == true ]]; then echo "Creating WireGuard config based on JSON received"; fi
 mkdir -p /etc/wireguard
 echo "\
 [Interface]
-PrivateKey = $private_key
+PrivateKey = ${private_key}
 
 [Peer]
 PersistentKeepalive = 25
-PublicKey = $(echo "$wireguard_json" | jq -r '.server_key')
+PublicKey = $(echo "${wireguard_json}" | jq -r '.server_key')
 AllowedIPs = 0.0.0.0/0
-Endpoint = ${WG_SERVER_IP}:$(echo "$wireguard_json" | jq -r '.server_port')
-" > "$CONFIG_DIR/$WG_LINK.conf"
+Endpoint = ${WG_SERVER_IP}:$(echo "${wireguard_json}" | jq -r '.server_port')
+" > "${CONFIG_DIR:?}/${WG_LINK:?}.conf"
 
 ############### NAMESPACE ###############
-if [[ $DEBUG == true ]]; then echo "Starting WireGuard interface..."; fi
+if [[ ${_debug} == true ]]; then echo "Starting WireGuard interface..."; fi
 
 # Create wireguard interface
-ip link add "$WG_LINK" type wireguard
+ip link add "${WG_LINK}" type wireguard
 
 # Load wireguard configuration
-wg setconf "$WG_LINK" "$CONFIG_DIR/$WG_LINK.conf"
+wg setconf "${WG_LINK}" "${CONFIG_DIR}/${WG_LINK}.conf"
 
 # Create a new namespace
-ip netns add "$NETNS_NAME"
+ip netns add "${NETNS_NAME}"
 
 # Move Wireguard interface to namespace
-ip link set "$WG_LINK" netns "$NETNS_NAME"
+ip link set "${WG_LINK}" netns "${NETNS_NAME}"
 
 # Set IP address of wireguard interface
-ip -n "$NETNS_NAME" addr add "$wg_address" dev "$WG_LINK"
+ip -n "${NETNS_NAME}" addr add "${wg_address}" dev "${WG_LINK}"
 
 # Start the WireGuard interface and sets it as default
-ip -n "$NETNS_NAME" link set lo up
-ip -n "$NETNS_NAME" link set "$WG_LINK" up
-ip -n "$NETNS_NAME" route add default dev "$WG_LINK"
+ip -n "${NETNS_NAME}" link set lo up
+ip -n "${NETNS_NAME}" link set "${WG_LINK}" up
+ip -n "${NETNS_NAME}" route add default dev "${WG_LINK}"
 
 ############### DNS ###############
 # Sets the DNS server. We can use PIA's server, instead of default one:
 # dnsServer="$(echo "$wireguard_json" | jq -r '.dns_servers[0]')"
-echo "nameserver $_DEFAULT_DNS" | ip netns exec "$NETNS_NAME" resolvconf -a "$WG_LINK" -m 0 -x > /dev/null 2>&1
+echo "nameserver ${default_dns}" | ip netns exec "${NETNS_NAME}" resolvconf -a "${WG_LINK}" -m 0 -x > /dev/null 2>&1
 
-PF_GATEWAY="$(echo "$wireguard_json" | jq -r '.server_vip')"
+PF_GATEWAY="$(echo "${wireguard_json}" | jq -r '.server_vip')"
 export PF_GATEWAY

@@ -8,7 +8,7 @@
 set -ueE
 failure() {
   local lineno=$1; local msg=$2
-  echo "$(basename "$0"): failed at $lineno: $msg"
+  echo "$(basename "$0"): failed at ${lineno}: ${msg}"
 }
 trap 'failure ${LINENO} "$BASH_COMMAND"' ERR
 
@@ -16,8 +16,8 @@ trap 'failure ${LINENO} "$BASH_COMMAND"' ERR
 # Checks if the required tools have been installed.
 function check_tool() {
   local cmd=$1; local package=$2
-  if ! command -v "$cmd" &>/dev/null; then
-    >&2 echo "$cmd could not be found"; echo "Please install $package"
+  if ! command -v "${cmd}" &>/dev/null; then
+    >&2 echo "${cmd} could not be found"; echo "Please install ${package}"
     exit 1
   fi
 }
@@ -26,36 +26,30 @@ function check_tool() {
 check_tool curl curl
 check_tool jq jq
 
-# Check if the mandatory environment variables are set.
-if [[ -z $SERVER_ID || -z $PIA_PF ]]; then
-  echo "$(basename "$0") script requires:"
-  echo "SERVER_ID   - id of the server you want to connect to"
-  echo "PIA_PF      - enable port forwarding (true by default)"
-  exit 1
-fi
+_debug=${DEBUG:-false}
 
 ############### REGION ###############
-readonly _SERVER_LIST_URL='https://serverlist.piaservers.net/vpninfo/servers/v4'
+readonly server_list_url='https://serverlist.piaservers.net/vpninfo/servers/v4'
 
 # retrieve a list of all servers and filter by SERVER_ID
-readonly all_region_data=$(curl -s "$_SERVER_LIST_URL" | head -1)
-readonly server_data="$(echo "$all_region_data" | jq --arg REGION_ID "$SERVER_ID" -r '.regions[] | select(.id==$REGION_ID)')"
+readonly all_region_data=$(curl -s "${server_list_url}" | head -1)
+readonly server_data="$(echo "${all_region_data}" | jq --arg REGION_ID "${SERVER_ID:?}" -r '.regions[] | select(.id==$REGION_ID)')"
 
 # Checks that a server was found
-if [[ ! $server_data ]]; then
-  >&2 echo "No server with id \"$SERVER_ID\" was found"
+if [[ -n ${server_data} ]]; then
+  >&2 echo "No server with id \"${SERVER_ID}\" was found"
   exit 1
 fi
 
-readonly can_forward="$(echo "$server_data" | jq -r '.port_forward')"
-readonly country="$(echo "$server_data" | jq -r '.country')"
-readonly name="$(echo "$server_data" | jq -r '.name')"
-readonly WG_SERVER_IP="$(echo "$server_data" | jq -r '.servers.wg[0].ip')"
-readonly WG_HOSTNAME="$(echo "$server_data" | jq -r '.servers.wg[0].cn')"
+readonly can_forward="$(echo "${server_data}" | jq -r '.port_forward')"
+readonly country="$(echo "${server_data}" | jq -r '.country')"
+readonly name="$(echo "${server_data}" | jq -r '.name')"
+readonly WG_SERVER_IP="$(echo "${server_data}" | jq -r '.servers.wg[0].ip')"
+readonly WG_HOSTNAME="$(echo "${server_data}" | jq -r '.servers.wg[0].cn')"
 export WG_SERVER_IP
 export WG_HOSTNAME
 
-if [[ $can_forward == false ]]; then PIA_PF=false; fi
-if [[ $DEBUG == true ]]; then echo "Server $SERVER_ID has support for port forwarding: $can_forward"; fi
+if [[ ${can_forward} == false ]]; then PORT_FORWARD=false; export PORT_FORWARD; fi
+if [[ ${_debug} == true ]]; then echo "Server ${SERVER_ID} has support for port forwarding: ${can_forward}"; fi
 
-echo "Attempting to connected to $name, $country"
+echo "Attempting to connected to ${name}, ${country}"
