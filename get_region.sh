@@ -36,7 +36,7 @@ readonly all_region_data=$(curl -s "${server_list_url}" | head -1)
 readonly server_data="$(echo "${all_region_data}" | jq --arg REGION_ID "${SERVER_ID:?}" -r '.regions[] | select(.id==$REGION_ID)')"
 
 # Checks that a server was found
-if [[ -n ${server_data} ]]; then
+if [[ -z ${server_data} ]]; then
   >&2 echo "No server with id \"${SERVER_ID}\" was found"
   exit 1
 fi
