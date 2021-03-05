@@ -2,14 +2,14 @@
 # shellcheck disable=SC1090
 # spell-checker: disable
 ###################################################################################
-# exports: CONFIG_DIR, AUTH_FILE, CERT, NETNS_NAME, WG_LINK, _SCRIPTS_DIR, PIA_PF
+# exports: CONFIG_DIR, AUTH_FILE, CERT, NETNS_NAME, WG_LINK, _scripts_dir, PORT_FORWARD
 #          DEBUG, SERVER_ID, PAYLOAD_FILE, BIND_SCRIPT
 ###################################################################################
 
 set -eE
 failure() {
   local lineno=$1; local msg=$2
-  echo "$(basename "$0"): failed at $lineno: $msg"
+  echo "$(basename "$0"): failed at ${lineno}: ${msg}"
 }
 trap 'failure ${LINENO} "$BASH_COMMAND"' ERR
 
@@ -17,8 +17,8 @@ trap 'failure ${LINENO} "$BASH_COMMAND"' ERR
 # Checks if the required tools have been installed
 function check_tool() {
   local cmd=$1; local package=$2
-  if ! command -v "$cmd" &>/dev/null; then
-    >&2 echo "$cmd could not be found"; echo "Please install $package"; exit 1
+  if ! command -v "${cmd}" &>/dev/null; then
+    >&2 echo "${cmd} could not be found"; echo "Please install ${package}"; exit 1
   fi
 }
 
@@ -27,7 +27,7 @@ function print_help() {
   printf "Connects to a Private VPN server\n\n"
   printf "Usage: vpn [OPTIONS] [SERVER] [FLAGS]\n"
   printf "OPTIONS have to come before SERVER. FLAGS can be passed anywhere.\n"
-  printf "It reads the username and password, for vpn authentication, from %s\n\n" "$AUTH"
+  printf "It reads the username and password, for vpn authentication, from %s\n\n" "${AUTH_FILE}"
   printf "OPTIONS:\n"
   printf "  %-7s   Connects to the specified server (or default one) with port forwarding if supported\n" "start"
   printf "  %-7s   Disconnects VPN\n" "stop"
@@ -49,18 +49,18 @@ function print_help() {
 # Stops the VPN
 function vpn_stop() {
   # Stop Transmission first
-  $_TRANSMISSION_STOP_SCRIPT || exit 10
+  ${_transmission_stop_script} || exit 10
 
   # Remove port binding script
-  crontab -l | grep -v "$BIND_SCRIPT" | crontab -u root -
+  crontab -l | grep -v "${BIND_SCRIPT}" | crontab -u root -
   killall socat > /dev/null 2>&1 || true
 
-  if ip -n "$NETNS_NAME" link show "$WG_LINK" > /dev/null 2>&1; then
+  if ip -n "${NETNS_NAME}" link show "${WG_LINK}" > /dev/null 2>&1; then
     # Delete the namespace
-    ip netns delete "$NETNS_NAME" > /dev/null 2>&1
+    ip netns delete "${NETNS_NAME}" > /dev/null 2>&1
 
     # Delete the DNS
-    resolvconf -d "$WG_LINK" > /dev/null 2>&1
+    resolvconf -d "${WG_LINK}" > /dev/null 2>&1
     echo "VPN disconnected"
   else
     echo "Nothing to stop"
@@ -70,56 +70,56 @@ function vpn_stop() {
 function vpn_start() {
   local ip_public; local ip_vpn; local count
   # Check if we should stop any existing connections
-  if ip -n "$NETNS_NAME" link show "$WG_LINK" > /dev/null 2>&1; then
+  if ip -n "${NETNS_NAME}" link show "${WG_LINK}" > /dev/null 2>&1; then
     read -r -n 1 -p "Do you want to stop the current connection before starting a new one? [Y/n] " stop
-    if [[ -n $stop ]]; then printf "\n"; fi # prints an empty line only when non-empty input
+    if [[ -n ${stop} ]]; then printf "\n"; fi # prints an empty line only when non-empty input
     stop=${stop:-y} # if empty, replace with 'y'
-    if [[ $stop == "y" ]]; then vpn_stop; else exit 0; fi
+    if [[ ${stop} == "y" ]]; then vpn_stop; else exit 0; fi
   fi
 
   ip_public=$(get_ip) # Get IP before VPN
-  if [[ $DEBUG == true ]]; then echo "IP before VPN: $ip_public"; fi
-  ip_vpn="$ip_public" # Initiate the variable for while loop
+  if [[ ${DEBUG} == true ]]; then echo "IP before VPN: ${ip_public}"; fi
+  ip_vpn="${ip_public}" # Initiate the variable for while loop
 
   # ---- CONNECTING CODE: START ---- #
-  if [[ $DEBUG == true ]]; then echo "Getting region data"; fi
-  . "$_GET_REGION" || exit 10
-  if [[ $DEBUG == true ]]; then echo "Getting token"; fi
-  . "$_GET_TOKEN" || exit 10
-  if [[ $DEBUG == true ]]; then echo "Connecting to Wireguard"; fi
-  . "$_CONNECT_SCRIPT" || exit 10
+  if [[ ${DEBUG} == true ]]; then echo "Getting region data"; fi
+  . "${_get_region_script}" || exit 10
+  if [[ ${DEBUG} == true ]]; then echo "Getting token"; fi
+  . "${_get_token_script}" || exit 10
+  if [[ ${DEBUG} == true ]]; then echo "Connecting to Wireguard"; fi
+  . "${_connect_script}" || exit 10
   # ---- CONNECTING CODE: END ---- #
 
   # Check and wait for new IP
   echo "Connected! Checking for new IP address...."
   count=1 # Doesn't let the while loop run forever
-  while [[ $ip_vpn == "$ip_public" ]] && (( count <= _MAX_WAIT )); do
-    sleep "$_WAIT_SECONDS" # Wait before checking for new IP
+  while [[ ${ip_vpn} == "${ip_public}" ]] && (( count <= _max_wait )); do
+    sleep "${_wait_seconds}" # Wait before checking for new IP
     ip_vpn=$(get_ip true) # Get IP after VPN
-    if [[ $DEBUG == true ]]; then printf "%d check for new IP\n" "$count"; fi
+    if [[ ${DEBUG} == true ]]; then printf "%d check for new IP\n" "${count}"; fi
     (( count++ ))
   done
 
-  if [[ $ip_vpn == "$ip_public" ]]; then
-    echo "You're IP hasn't changed after $((_MAX_WAIT * SEC)) seconds. Disconnecting VPN..."
+  if [[ ${ip_vpn} == "${ip_public}" ]]; then
+    echo "You're IP hasn't changed after $((_max_wait * _wait_seconds)) seconds. Disconnecting VPN..."
     vpn_stop
     exit
   fi
-  echo "Your new public IP is $ip_vpn"
+  echo "Your new public IP is ${ip_vpn}"
 
-  if [[ $PIA_PF == true ]]; then
-    if [[ $DEBUG == true ]]; then echo "Starting port forwarding"; fi
-    $_PORT_SCRIPT || exit 10
+  if [[ ${PORT_FORWARD} == true ]]; then
+    if [[ ${DEBUG} == true ]]; then echo "Starting port forwarding"; fi
+    ${_port_script} || exit 10
     # Starts Transmission if port forwarding is enabled
-    $_TRANSMISSION_START_SCRIPT || exit 10
+    ${_transmission_start_script} || exit 10
   fi
 }
 
 # Retrieves the Public IP
 function get_ip() {
   local namespace=$1
-  if [[ -n $namespace ]]; then
-    ip netns exec "$NETNS_NAME" dig TXT +short o-o.myaddr.l.google.com @ns1.google.com | awk -F'\"' '{ print $2}'
+  if [[ -n ${namespace} ]]; then
+    ip netns exec "${NETNS_NAME}" dig TXT +short o-o.myaddr.l.google.com @ns1.google.com | awk -F'\"' '{ print $2}'
   else
     dig TXT +short o-o.myaddr.l.google.com @ns1.google.com | awk -F'\"' '{ print $2}'
   fi
@@ -132,14 +132,14 @@ check_tool socat socat
 
 ############### VARIABLES ###############
 DEBUG=false
-readonly _ORG_ARG=( "$@" )
-readonly _WAIT_SECONDS=1 # seconds to wait before checking for updated IP
-readonly _MAX_WAIT=12 # It'll wait for SEC times this value, i.e. SEC=5 _MAX_WAIT=12, will wait for 1 minute
-readonly _GEOIP=/home/felipe/.config/geoip/database/GeoLite2-City.mmdb # database for status info
+readonly _org_arg=( "$@" )
+readonly _wait_seconds=1 # seconds to wait before checking for updated IP
+readonly _max_wait=12 # It'll wait for _wait_seconds times this value
+readonly _geoip_db=/home/felipe/.config/geoip/database/GeoLite2-City.mmdb # database for status info
 readonly CONFIG_DIR=/home/felipe/.config/pia_vpn
-readonly AUTH_FILE=$CONFIG_DIR/passwd # PIA username and password
-readonly PAYLOAD_FILE=$CONFIG_DIR/payload.json # PIA's payload response for port forwarding
-readonly CERT=$CONFIG_DIR/ca.rsa.4096.crt # PIA certificate
+readonly AUTH_FILE=${CONFIG_DIR}/passwd # PIA username and password
+readonly PAYLOAD_FILE=${CONFIG_DIR}/payload.json # PIA's payload response for port forwarding
+readonly CERT=${CONFIG_DIR}/ca.rsa.4096.crt # PIA certificate
 readonly NETNS_NAME=piaVPN # name of the namespace
 readonly WG_LINK=piaWg
 export CONFIG_DIR
@@ -150,20 +150,20 @@ export NETNS_NAME
 export WG_LINK
 
 # Necessary scripts
-readonly _SCRIPTS_DIR=/home/felipe/workspace/pia-vpn-transmission
-readonly _GET_REGION=$_SCRIPTS_DIR/get_region.sh
-readonly _GET_TOKEN=$_SCRIPTS_DIR/get_token.sh
-readonly _CONNECT_SCRIPT=$_SCRIPTS_DIR/connect_to_wg.sh
-readonly _PORT_SCRIPT=$_SCRIPTS_DIR/port_forwarding.sh
-readonly _TRANSMISSION_START_SCRIPT=$_SCRIPTS_DIR/start_transmission.sh
-readonly _TRANSMISSION_STOP_SCRIPT=$_SCRIPTS_DIR/stop_transmission.sh
-readonly _MMDBINSPECT=/home/felipe/go/bin/mmdbinspect
-readonly BIND_SCRIPT=$_SCRIPTS_DIR/bind_port.sh
+readonly _scripts_dir=/home/felipe/workspace/pia-vpn-transmission
+readonly _get_region_script=${_scripts_dir}/get_region.sh
+readonly _get_token_script=${_scripts_dir}/get_token.sh
+readonly _connect_script=${_scripts_dir}/connect_to_wg.sh
+readonly _port_script=${_scripts_dir}/port_forwarding.sh
+readonly _transmission_start_script=${_scripts_dir}/start_transmission.sh
+readonly _transmission_stop_script=${_scripts_dir}/stop_transmission.sh
+readonly _mmdbinspect=/home/felipe/go/bin/mmdbinspect
+readonly BIND_SCRIPT=${_scripts_dir}/bind_port.sh
 export BIND_SCRIPT
 
 # Default to always forward port unless option to not do so was passed
-if [[ $PIA_PF != "false" ]]; then PIA_PF="true"; fi
-export PIA_PF
+if [[ ${PORT_FORWARD} != "false" ]]; then PORT_FORWARD="true"; fi
+export PORT_FORWARD
 
 ############### SCRIPT OPTIONS ###############
 # Analyze script options
@@ -171,7 +171,7 @@ while (( "$#" )); do
   case "$1" in
     -h|--help) print_help; exit;;
     -v) DEBUG=true; shift;;
-    -n) PIA_PF="false"; shift;;
+    -n) PORT_FORWARD=false; shift;;
     -*) # unsupported flags
       printf "\e[31m%s%s\e[0m\n" "Error: Unsupported flag " "$1"
       print_help; exit 1;;
@@ -183,20 +183,20 @@ readonly DEBUG
 export DEBUG
 
 # Check the script is running as root
-[ ${EUID:-$(id -u)} -eq 0 ] || exec sudo -E "$(readlink -f "$0")" "${_ORG_ARG[@]}"
+[ "${EUID:-$(id -u)}" -eq 0 ] || exec sudo -E "$(readlink -f "$0")" "${_org_arg[@]}"
 
 # Checks for correct amount of parameters and assigns them
 if (( ${#params[@]} > 2 )); then printf "\e[31m%s\e[0m\n" "A max of two parameters can be passed"; exit 1; fi
 readonly options=${params[0]}
 readonly server=${params[1]}
 
-if [[ $DEBUG == true ]]; then
-  echo "OPTIONS: $options"
-  echo "SERVER: $server"
+if [[ ${DEBUG} == true ]]; then
+  echo "OPTIONS: ${options}"
+  echo "SERVER: ${server}"
 fi
 
 # Assigns the correct server ID
-case $server in
+case ${server} in
   van | "") SERVER_ID="ca_vancouver";;
   ont) SERVER_ID="ca_ontario";;
   mtl) SERVER_ID="ca";;
@@ -210,10 +210,10 @@ esac
 readonly SERVER_ID
 export SERVER_ID
 
-if [[ $DEBUG == true ]]; then echo "SERVER_ID: $SERVER_ID"; fi
+if [[ ${DEBUG} == true ]]; then echo "SERVER_ID: ${SERVER_ID}"; fi
 
 ###########################################
-case $options in
+case ${options} in
   start)
     vpn_start
     ;;
@@ -221,10 +221,10 @@ case $options in
     vpn_stop
     ;;
   status | "")
-    if ! ip -n "$NETNS_NAME" link show $WG_LINK > /dev/null 2>&1; then echo "VPN is disconnected"; exit; fi
+    if ! ip -n "${NETNS_NAME}" link show "${WG_LINK}" > /dev/null 2>&1; then echo "VPN is disconnected"; exit; fi
     ip_vpn=$(get_ip true)
-    location=$($_MMDBINSPECT -db $_GEOIP "$ip_vpn" | jq '.[].Records[].Record | .city.names.en + " "  + .subdivisions[].iso_code  + ", " + .country.names.en')
-    echo "Connected to $location. Your public IP is $ip_vpn"
+    location=$(${_mmdbinspect} -db "${_geoip_db}" "${ip_vpn}" | jq '.[].Records[].Record | .city.names.en + " "  + .subdivisions[].iso_code  + ", " + .country.names.en')
+    echo "Connected to ${location}. Your public IP is ${ip_vpn}"
     ;;
   *)
     print_help
