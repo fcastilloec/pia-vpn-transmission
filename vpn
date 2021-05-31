@@ -127,8 +127,9 @@ function get_ip() {
 
 ############### CHECKS ###############
 check_tool jq jq
-check_tool dig dig
+check_tool dig dnsutils
 check_tool socat socat
+check_tool transmission-daemon transmission-daemon
 
 ############### VARIABLES ###############
 DEBUG=false
