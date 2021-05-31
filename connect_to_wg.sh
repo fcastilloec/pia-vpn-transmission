@@ -42,8 +42,10 @@ fi
 
 ############### VARIABLES ###############
 readonly default_dns="1.1.1.1"
-readonly private_key="$(wg genkey)"
-readonly public_key="$(echo "${private_key}" | wg pubkey)"
+private_key="$(wg genkey)"
+public_key="$(echo "${private_key}" | wg pubkey)"
+readonly private_key
+readonly public_key
 
 ############### WIREGUARD CONFIG ###############
 # Authenticate via the PIA WireGuard RESTful API.
@@ -63,7 +65,8 @@ if [ "$(echo "${wireguard_json}" | jq -r '.status')" != "OK" ]; then
 fi
 
 # Set IP address of interface
-readonly wg_address="$(echo "${wireguard_json}" | jq -r '.peer_ip')"
+wg_address="$(echo "${wireguard_json}" | jq -r '.peer_ip')"
+readonly wg_address
 
 # Create the WireGuard config based on the JSON received from the API
 if [[ ${_debug} == true ]]; then echo "Creating WireGuard config based on JSON received"; fi

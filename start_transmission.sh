@@ -35,8 +35,10 @@ if [[ ! -f ${PAYLOAD_FILE:?} ]]; then
   >&2 echo "Cannot find Payload file: ${PAYLOAD_FILE}"; exit 1
 fi
 
-readonly forwarding_port=$(jq -r '.payload' < "${PAYLOAD_FILE}" | base64 -d | jq -r '.port')
-readonly web_port=$(jq -r '."rpc-port"' "${transmission_settings}")
+forwarding_port=$(jq -r '.payload' < "${PAYLOAD_FILE}" | base64 -d | jq -r '.port')
+web_port=$(jq -r '."rpc-port"' "${transmission_settings}")
+readonly forwarding_port
+readonly web_port
 
 if [[ ${_debug} == true ]]; then
   echo "VPN port forwarded, port ${forwarding_port} is being used"

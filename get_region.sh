@@ -32,8 +32,10 @@ _debug=${DEBUG:-false}
 readonly server_list_url='https://serverlist.piaservers.net/vpninfo/servers/v4'
 
 # retrieve a list of all servers and filter by SERVER_ID
-readonly all_region_data=$(curl -s "${server_list_url}" | head -1)
-readonly server_data="$(echo "${all_region_data}" | jq --arg REGION_ID "${SERVER_ID:?}" -r '.regions[] | select(.id==$REGION_ID)')"
+all_region_data=$(curl -s "${server_list_url}" | head -1)
+server_data="$(echo "${all_region_data}" | jq --arg REGION_ID "${SERVER_ID:?}" -r '.regions[] | select(.id==$REGION_ID)')"
+readonly all_region_data
+readonly server_data
 
 # Checks that a server was found
 if [[ -z ${server_data} ]]; then
@@ -41,13 +43,18 @@ if [[ -z ${server_data} ]]; then
   exit 1
 fi
 
-readonly can_forward="$(echo "${server_data}" | jq -r '.port_forward')"
-readonly country="$(echo "${server_data}" | jq -r '.country')"
-readonly name="$(echo "${server_data}" | jq -r '.name')"
-readonly WG_SERVER_IP="$(echo "${server_data}" | jq -r '.servers.wg[0].ip')"
-readonly WG_HOSTNAME="$(echo "${server_data}" | jq -r '.servers.wg[0].cn')"
+can_forward="$(echo "${server_data}" | jq -r '.port_forward')"
+country="$(echo "${server_data}" | jq -r '.country')"
+name="$(echo "${server_data}" | jq -r '.name')"
+WG_SERVER_IP="$(echo "${server_data}" | jq -r '.servers.wg[0].ip')"
+WG_HOSTNAME="$(echo "${server_data}" | jq -r '.servers.wg[0].cn')"
 export WG_SERVER_IP
 export WG_HOSTNAME
+readonly can_forward
+readonly country
+readonly name
+readonly WG_SERVER_IP
+readonly WG_HOSTNAME
 
 if [[ ${can_forward} == false ]]; then PORT_FORWARD=false; export PORT_FORWARD; fi
 if [[ ${_debug} == true ]]; then echo "Server ${SERVER_ID} has support for port forwarding: ${can_forward}"; fi
