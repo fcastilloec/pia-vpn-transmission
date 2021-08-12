@@ -29,7 +29,7 @@ check_tool jq jq
 _debug=${DEBUG:-false}
 
 ############### REGION ###############
-readonly server_list_url='https://serverlist.piaservers.net/vpninfo/servers/v4'
+readonly server_list_url='https://serverlist.piaservers.net/vpninfo/servers/v6'
 
 # retrieve a list of all servers and filter by SERVER_ID
 all_region_data=$(curl -s "${server_list_url}" | head -1)
