@@ -17,12 +17,14 @@ if ! command -v jq &>/dev/null; then
 fi
 
 _debug=${DEBUG:-false}
-settings=/home/felipe/.config/transmission/settings.json
-default_port="62021" # default port when not using VPN
+readonly transmission_config_dir=/home/felipe/.config/transmission
+readonly transmission_settings=${transmission_config_dir}/settings.json
+readonly transmission_pid=${transmission_config_dir}/pid
+readonly default_port="62021" # default port when not using VPN
 
 # Checks that Transmission settings file exist
-if [[ ! -f ${settings} ]]; then
-  >&2 echo "Cannot modify Transmission settings. ${settings} not found"; exit 1
+if [[ ! -f ${transmission_settings} ]]; then
+  >&2 echo "Cannot modify Transmission settings. ${transmission_settings} not found"; exit 1
 fi
 
 # Check if running as root/sudo
@@ -34,10 +36,11 @@ if pidof transmission-daemon > /dev/null; then
   if [[ ${_debug} == true ]]; then echo "transmission-daemon is active. Stopping..."; fi
   # Kill all process inside the namespace or at least just transmission
   ip netns pids "${NETNS_NAME:?}" | xargs kill -9 > /dev/null 2>&1 || kill -9 "$(pidof transmission-daemon)"
+  /usr/bin/rm -f "${transmission_pid}"
 fi
 
 # Changes port back to its default
-port=$(jq -r '."peer-port"' "${settings}") # retrieve port from settings file
+port=$(jq -r '."peer-port"' "${transmission_settings}") # retrieve port from settings file
 if [[ ${_debug} == true ]]; then echo "VPN port inside Transmission settings file: ${port}"; fi
 
 # Check if port needs modifying
@@ -46,7 +49,7 @@ if (( port == default_port )); then
   exit 0
 fi
 
-tempSettings=$(jq '."peer-port"'="${default_port}" "${settings}")
-printf "%s" "${tempSettings}" > "${settings}"
+tempSettings=$(jq '."peer-port"'="${default_port}" "${transmission_settings}")
+printf "%s" "${tempSettings}" > "${transmission_settings}"
 
 if [[ ${_debug} == true ]]; then echo "Port rule back to default value"; fi

@@ -24,6 +24,7 @@ fi
 
 readonly transmission_config_dir=/home/felipe/.config/transmission
 readonly transmission_settings=${transmission_config_dir}/settings.json
+readonly transmission_pid=${transmission_config_dir}/pid
 readonly transmission_log=/var/log/transmission.log
 
 # Checks that Transmission settings file exists
@@ -60,7 +61,15 @@ printf "%s" "${tempSettings}" > "${transmission_settings}"
 ip netns exec "${NETNS_NAME:?}"\
  /usr/bin/transmission-daemon --log-error\
  --config-dir "${transmission_config_dir}"\
- --logfile "${transmission_log}"
+ --logfile "${transmission_log}"\
+ --pid-file "${transmission_pid}"
+
+while [ ! -f "${transmission_pid}" ]; do
+  sleep 0.05
+done
+
+if [[ ${_debug} == true ]]; then echo "Changing Transmission settings file permissions"; fi
+chmod a+rw "${transmission_settings}"
 
 # Start redirection to access web interface
 socat tcp-listen:"${web_port}",fork,reuseaddr\
