@@ -71,10 +71,14 @@ function vpn_start() {
   local ip_public; local ip_vpn; local count
   # Check if we should stop any existing connections
   if ip -n "${NETNS_NAME}" link show "${WG_LINK}" > /dev/null 2>&1; then
-    read -r -n 1 -p "Do you want to stop the current connection before starting a new one? [Y/n] " stop
-    if [[ -n ${stop} ]]; then printf "\n"; fi # prints an empty line only when non-empty input
-    stop=${stop:-y} # if empty, replace with 'y'
-    if [[ ${stop} == "y" ]]; then vpn_stop; else exit 0; fi
+    if [[ -z "${INVOCATION_ID}" ]]; then
+      read -r -n 1 -p "Do you want to stop the current connection before starting a new one? [Y/n] " stop
+      if [[ -n ${stop} ]]; then printf "\n"; fi # prints an empty line only when non-empty input
+      stop=${stop:-y} # if empty, replace with 'y'
+      if [[ ${stop} == "y" ]]; then vpn_stop; else exit 0; fi
+    else
+      vpn_stop
+    fi
   fi
 
   ip_public=$(get_ip) # Get IP before VPN
