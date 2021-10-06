@@ -25,7 +25,8 @@ fi
 readonly transmission_config_dir=/home/felipe/.config/transmission
 readonly transmission_settings=${transmission_config_dir}/settings.json
 readonly transmission_pid=${transmission_config_dir}/pid
-readonly transmission_log=/var/log/transmission.log
+# readonly transmission_log=/var/log/transmission.log
+readonly transmission_log=/dev/null
 
 # Checks that Transmission settings file exists
 if [[ ! -f ${transmission_settings} ]]; then
