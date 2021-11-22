@@ -13,7 +13,7 @@ trap 'failure ${LINENO} "$BASH_COMMAND"' ERR
 
 ############### CHECKS & VARIABLES ###############
 # Check if running as root/sudo
-[ "${EUID:-$(id -u)}" -eq 0 ] || exec sudo -E "$(readlink -f "$0")" "$@"
+[[ "${EUID:-$(id -u)}" -eq 0 ]] || exec sudo -E "$(readlink -f "$0")" "$@"
 
 _debug=${DEBUG:-false}
 
@@ -65,7 +65,7 @@ ip netns exec "${NETNS_NAME:?}"\
  --logfile "${transmission_log}"\
  --pid-file "${transmission_pid}"
 
-while [ ! -f "${transmission_pid}" ]; do
+while [[ ! -f "${transmission_pid}" ]]; do
   sleep 0.05
 done
 

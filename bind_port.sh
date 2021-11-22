@@ -12,7 +12,7 @@ trap 'failure ${LINENO} "$BASH_COMMAND"' ERR
 
 ############### CHECKS ###############
 # Check if running as root/sudo
-[ "${EUID:-$(id -u)}" -eq 0 ] || exec sudo -E "$(readlink -f "$0")" "$@"
+[[ "${EUID:-$(id -u)}" -eq 0 ]] || exec sudo -E "$(readlink -f "$0")" "$@"
 
 # Remove port binding script only if it exists
 if ! ip netns list | grep -q "${NETNS_NAME:?}"; then
@@ -28,7 +28,7 @@ bind_port_response="$(ip netns exec "${NETNS_NAME}" curl -Gs -m 5 \
 --data-urlencode "signature=${SIGNATURE:?}" \
 "https://${WG_HOSTNAME}:19999/bindPort")"
 
-if [ "$(echo "${bind_port_response}" | jq -r '.status')" != "OK" ]; then
+if [[ "$(echo "${bind_port_response}" | jq -r '.status')" != "OK" ]]; then
   echo "$(date --rfc-3339=seconds) - ERROR - response was not 'OK' - $(echo "${bind_port_response}" | jq -r '.status')"
   exit 1
 fi

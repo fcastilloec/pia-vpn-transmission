@@ -81,7 +81,7 @@ function vpn_start() {
     fi
   fi
 
-  ip_public=$(get_ip) # Get IP before VPN
+  ip_public=$(set -e; get_ip) # Get IP before VPN
   if [[ ${DEBUG} == true ]]; then echo "IP before VPN: ${ip_public}"; fi
   ip_vpn="${ip_public}" # Initiate the variable for while loop
 
@@ -99,7 +99,7 @@ function vpn_start() {
   count=1 # Doesn't let the while loop run forever
   while [[ ${ip_vpn} == "${ip_public}" ]] && (( count <= _max_wait )); do
     sleep "${_wait_seconds}" # Wait before checking for new IP
-    ip_vpn=$(get_ip true) # Get IP after VPN
+    ip_vpn=$(set -e; get_ip true) # Get IP after VPN
     if [[ ${DEBUG} == true ]]; then printf "%d check for new IP\n" "${count}"; fi
     (( count++ ))
   done
@@ -188,7 +188,7 @@ readonly DEBUG
 export DEBUG
 
 # Check the script is running as root
-[ "${EUID:-$(id -u)}" -eq 0 ] || exec sudo -E "$(readlink -f "$0")" "${_org_arg[@]}"
+[[ "${EUID:-$(id -u)}" -eq 0 ]] || exec sudo -E "$(readlink -f "$0")" "${_org_arg[@]}"
 
 # Checks for correct amount of parameters and assigns them
 if (( ${#params[@]} > 2 )); then printf "\e[31m%s\e[0m\n" "A max of two parameters can be passed"; exit 1; fi
@@ -227,7 +227,7 @@ case ${options} in
     ;;
   status | "")
     if ! ip -n "${NETNS_NAME}" link show "${WG_LINK}" > /dev/null 2>&1; then echo "VPN is disconnected"; exit; fi
-    ip_vpn=$(get_ip true)
+    ip_vpn=$(set -e; get_ip true)
     location=$(${_mmdbinspect} -db "${_geoip_db}" "${ip_vpn}" | jq '.[].Records[].Record | .city.names.en + " "  + .subdivisions[].iso_code  + ", " + .country.names.en')
     echo "Connected to ${location}. Your public IP is ${ip_vpn}"
     ;;

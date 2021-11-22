@@ -23,7 +23,7 @@ function get_signature_and_payload() {
     "https://${WG_HOSTNAME}:19999/getSignature")"
 
   # Check if the payload and the signature are OK.
-  if [ "$(echo "${payload_and_signature}" | jq -r '.status')" != "OK" ]; then
+  if [[ "$(echo "${payload_and_signature}" | jq -r '.status')" != "OK" ]]; then
     echo "The payload_and_signature variable does not contain an OK status."; exit 1
   fi
 
@@ -32,7 +32,7 @@ function get_signature_and_payload() {
 
 ############### CHECKS ###############
 # Check if running as root/sudo
-[ "${EUID:-$(id -u)}" -eq 0 ] || exec sudo -E "$(readlink -f "$0")" "$@"
+[[ "${EUID:-$(id -u)}" -eq 0 ]] || exec sudo -E "$(readlink -f "$0")" "$@"
 
 ############### VARIABLES ###############
 readonly bind_interval=15 # time in minutes to re-bind the port, otherwise it gets deleted
@@ -49,10 +49,10 @@ if [[ -f ${PAYLOAD_FILE:?} ]]; then
   # Check if port has expired. It expires in 2 months
   if ((  expires_at < $(date +%s) )); then
     if [[ ${_debug} == true ]]; then echo "Payload from file has expired"; fi
-    payload_and_signature="$(get_signature_and_payload)"
+    payload_and_signature="$(set -e; get_signature_and_payload)"
   fi
 else
-  payload_and_signature="$(get_signature_and_payload)"
+  payload_and_signature="$(set -e; get_signature_and_payload)"
 fi
 if [[ ${_debug} == true ]]; then echo "Payload and signature: ${payload_and_signature}"; fi
 

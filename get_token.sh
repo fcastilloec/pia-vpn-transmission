@@ -34,7 +34,7 @@ function get_auth_token() {
   generateTokenResponse=$(curl -s -u "${pia_user}:${pia_pass}" "https://privateinternetaccess.com/gtoken/generateToken")
 
   # Checks response
-  if [ "$(echo "${generateTokenResponse}" | jq -r '.status')" != "OK" ]; then
+  if [[ "$(echo "${generateTokenResponse}" | jq -r '.status')" != "OK" ]]; then
     >&2 echo "Could not get a token. Please check your account credentials." && exit 1
   fi
 
@@ -78,11 +78,11 @@ if [[ -f ${token_file} ]]; then
     PIA_TOKEN="$(jq -r '.token' < "${token_file}")"
   else
     if [[ ${_debug} == true ]]; then echo "Token expired, retrieving a new one"; fi
-    PIA_TOKEN=$(get_auth_token)
+    PIA_TOKEN=$(set -e; get_auth_token)
   fi
 else
   if [[ ${_debug} == true ]]; then echo "No token file found, retrieving token"; fi
-  PIA_TOKEN=$(get_auth_token)
+  PIA_TOKEN=$(set -e; get_auth_token)
 fi
 readonly PIA_TOKEN
 export PIA_TOKEN

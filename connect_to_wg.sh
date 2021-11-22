@@ -30,7 +30,7 @@ check_tool curl curl
 check_tool jq jq
 
 # Check if running as root/sudo
-[ "${EUID:-$(id -u)}" -eq 0 ] || exec sudo -E "$(readlink -f "$0")" "$@"
+[[ "${EUID:-$(id -u)}" -eq 0 ]] || exec sudo -E "$(readlink -f "$0")" "$@"
 
 _debug=${DEBUG:-false}
 
@@ -59,7 +59,7 @@ wireguard_json="$(curl -s -G \
 if [[ ${_debug} == true ]]; then echo "WireGuard response: ${wireguard_json}"; fi
 
 # Check if the API returned OK and stop this script if it didn't.
-if [ "$(echo "${wireguard_json}" | jq -r '.status')" != "OK" ]; then
+if [[ "$(echo "${wireguard_json}" | jq -r '.status')" != "OK" ]]; then
   >&2 echo "Server did not return OK. Stopping now."
   exit 1
 fi
