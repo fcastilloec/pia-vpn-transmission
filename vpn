@@ -123,10 +123,11 @@ function vpn_start() {
 function get_ip() {
   local namespace=$1
   if [[ -n ${namespace} ]]; then
-    # address=$(ip netns exec "${NETNS_NAME}" dig TXT +short o-o.myaddr.l.google.com @ns1.google.com)
-    ip netns exec "${NETNS_NAME}" curl -s ipinfo.io/ip
+    ip netns exec "${NETNS_NAME}" dig TXT +short o-o.myaddr.l.google.com @ns1.google.com | tr -d \"
+    # ip netns exec "${NETNS_NAME}" curl -s ipinfo.io/ip
   else
-    curl -s ipinfo.io/ip
+    dig TXT +short o-o.myaddr.l.google.com @ns1.google.com | tr -d \"
+    # curl -s ipinfo.io/ip
   fi
 }
 
