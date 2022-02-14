@@ -31,7 +31,7 @@ function get_auth_token() {
   local generateTokenResponse
   local token
 
-  generateTokenResponse=$(curl -s -u "${pia_user}:${pia_pass}" "https://privateinternetaccess.com/gtoken/generateToken")
+  generateTokenResponse=$(curl -s -u "${pia_user}:${pia_pass}" "https://www.privateinternetaccess.com/gtoken/generateToken")
 
   # Checks response
   if [[ "$(echo "${generateTokenResponse}" | jq -r '.status')" != "OK" ]]; then

@@ -41,7 +41,7 @@ if ip netns list | grep -q "${NETNS_NAME:?}"; then
 fi
 
 ############### VARIABLES ###############
-readonly default_dns="1.1.1.1"
+# readonly default_dns="1.1.1.1"
 private_key="$(wg genkey)"
 public_key="$(echo "${private_key}" | wg pubkey)"
 readonly private_key
@@ -68,10 +68,16 @@ fi
 wg_address="$(echo "${wireguard_json}" | jq -r '.peer_ip')"
 readonly wg_address
 
+############### DNS ###############
+# Sets the DNS server. We can use PIA's server, instead of default one:
+# dnsServer="$(echo "${wireguard_json}" | jq -r '.dns_servers[0]')"
+# dnsServer=${default_dns}
+#  echo "nameserver ${default_dns}" | ip netns exec "${NETNS_NAME}" resolvconf -a "${WG_LINK}" -m 0 -x > /dev/null 2>&1
+
 # Create the WireGuard config based on the JSON received from the API
 if [[ ${_debug} == true ]]; then echo "Creating WireGuard config based on JSON received"; fi
 mkdir -p /etc/wireguard
-echo "\
+echo "
 [Interface]
 PrivateKey = ${private_key}
 
@@ -104,11 +110,6 @@ ip -n "${NETNS_NAME}" addr add "${wg_address}" dev "${WG_LINK}"
 ip -n "${NETNS_NAME}" link set lo up
 ip -n "${NETNS_NAME}" link set "${WG_LINK}" up
 ip -n "${NETNS_NAME}" route add default dev "${WG_LINK}"
-
-############### DNS ###############
-# Sets the DNS server. We can use PIA's server, instead of default one:
-# dnsServer="$(echo "$wireguard_json" | jq -r '.dns_servers[0]')"
-echo "nameserver ${default_dns}" | ip netns exec "${NETNS_NAME}" resolvconf -a "${WG_LINK}" -m 0 -x > /dev/null 2>&1
 
 PF_GATEWAY="$(echo "${wireguard_json}" | jq -r '.server_vip')"
 export PF_GATEWAY

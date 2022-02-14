@@ -60,7 +60,7 @@ function vpn_stop() {
     ip netns delete "${NETNS_NAME}" > /dev/null 2>&1
 
     # Delete the DNS
-    resolvconf -d "${WG_LINK}" > /dev/null 2>&1
+    # resolvconf -d "${WG_LINK}" > /dev/null 2>&1
     echo "VPN disconnected"
   else
     echo "Nothing to stop"
