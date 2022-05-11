@@ -136,6 +136,7 @@ check_tool jq jq
 check_tool dig dnsutils
 check_tool socat socat
 check_tool transmission-daemon transmission-daemon
+check_tool mmdbinspect "mmdbinspect using golang, and make sure it's accessible to all users."
 
 ############### VARIABLES ###############
 DEBUG=false
@@ -164,7 +165,6 @@ readonly _connect_script=${_scripts_dir}/connect_to_wg.sh
 readonly _port_script=${_scripts_dir}/port_forwarding.sh
 readonly _transmission_start_script=${_scripts_dir}/start_transmission.sh
 readonly _transmission_stop_script=${_scripts_dir}/stop_transmission.sh
-readonly _mmdbinspect=/home/felipe/go/bin/mmdbinspect
 readonly BIND_SCRIPT=${_scripts_dir}/bind_port.sh
 export BIND_SCRIPT
 
@@ -230,7 +230,7 @@ case ${options} in
   status | "")
     if ! ip -n "${NETNS_NAME}" link show "${WG_LINK}" > /dev/null 2>&1; then echo "VPN is disconnected"; exit; fi
     ip_vpn=$(set -e; get_ip true)
-    location=$(${_mmdbinspect} -db "${_geoip_db}" "${ip_vpn}" | jq '.[].Records[].Record | .city.names.en + " "  + .subdivisions[].iso_code  + ", " + .country.names.en')
+    location=$(mmdbinspect -db "${_geoip_db}" "${ip_vpn}" | jq '.[].Records[].Record | .city.names.en + " "  + .subdivisions[].iso_code  + ", " + .country.names.en')
     echo "Connected to ${location}. Your public IP is ${ip_vpn}"
     ;;
   *)
