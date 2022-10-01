@@ -208,7 +208,7 @@ case ${server} in
   ont) SERVER_ID="ca_ontario";;
   mtl) SERVER_ID="ca";;
   tor) SERVER_ID="ca_toronto";;
-  ber) SERVER_ID="ca_toronto";;
+  ber) SERVER_ID="de_berlin";;
   frk) SERVER_ID="de-frankfurt";;
   fra) SERVER_ID="france";;
   sea) SERVER_ID="us_seattle";;
