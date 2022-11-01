@@ -166,6 +166,8 @@ readonly _port_script=${_scripts_dir}/port_forwarding.sh
 readonly _transmission_start_script=${_scripts_dir}/start_transmission.sh
 readonly _transmission_stop_script=${_scripts_dir}/stop_transmission.sh
 readonly BIND_SCRIPT=${_scripts_dir}/bind_port.sh
+readonly transmission_daemon_script=${_scripts_dir}/transmission_daemon.sh
+export transmission_daemon_script
 export BIND_SCRIPT
 
 # Default to always forward port unless option to not do so was passed

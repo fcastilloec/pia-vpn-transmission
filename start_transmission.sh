@@ -25,8 +25,6 @@ fi
 readonly transmission_config_dir=/home/felipe/.config/transmission
 readonly transmission_settings=${transmission_config_dir}/settings.json
 readonly transmission_pid=${transmission_config_dir}/pid
-# readonly transmission_log=/var/log/transmission.log
-readonly transmission_log=/dev/null
 
 # Checks that Transmission settings file exists
 if [[ ! -f ${transmission_settings} ]]; then
@@ -58,12 +56,9 @@ fi
 tempSettings=$(jq '."peer-port"'="${forwarding_port}" "${transmission_settings}")
 printf "%s" "${tempSettings}" > "${transmission_settings}"
 
-# Restart transmission
+# Start transmission from script so there's theme support
 ip netns exec "${NETNS_NAME:?}"\
- /usr/bin/transmission-daemon --log-error\
- --config-dir "${transmission_config_dir}"\
- --logfile "${transmission_log}"\
- --pid-file "${transmission_pid}"
+ "${transmission_daemon_script:?}"
 
 while [[ ! -f "${transmission_pid}" ]]; do
   sleep 0.05
