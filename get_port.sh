@@ -24,6 +24,7 @@ function check_tool() {
 }
 
 ############### VARIABLES ###############
+readonly version=1.0.0
 readonly payload_file="/opt/piavpn/etc/account.json"
 readonly transmission_config_dir="${HOME}/.config/transmission"
 readonly transmission_settings=${transmission_config_dir}/settings.json
@@ -49,6 +50,8 @@ if [[ ! -f ${transmission_settings} ]]; then
 fi
 
 ##########################################
+echo "Starting port forwarding: v${version}"
+
 # Reads the port from the payload file
 payload=$(<"${payload_file}")
 portForwardPayload="$(echo "${payload}" | jq -r '.portForwardPayload')"
@@ -60,7 +63,7 @@ current_port=$(jq -r '."peer-port"' "${transmission_settings}")
 
 # Check if changes are needed
 if [[ ${current_port} -eq ${port} ]]; then
-  if [[ ${DEBUG=false} == true ]]; then echo "Nothing to do, port is already in used"; fi
+  echo "Nothing to do, port is already in used"
   exit 0
 fi
 
@@ -96,3 +99,5 @@ if [[ ${was_running} == 'true' ]]; then
   --text="<span size=\"xx-large\">Restart Transmission</span>\n\nThe port changed happened at:\n<b>$(date)</b>" \
   --title="New VPN port assigned"
 fi
+
+echo "Port forwarding done"
