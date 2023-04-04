@@ -24,7 +24,7 @@ function check_tool() {
 }
 
 ############### VARIABLES ###############
-readonly version=1.0.1
+readonly version=1.1.0
 readonly payload_file="/opt/piavpn/etc/account.json"
 readonly transmission_settings="${_HOME:?Home directory is not known}/.config/transmission/settings.json"
 was_running=false
@@ -96,7 +96,7 @@ if [[ ${was_running} == 'true' ]]; then
   zenity \
   --info \
   --text="<span size=\"xx-large\">Restart Transmission</span>\n\nThe port changed happened at:\n<b>$(date)</b>" \
-  --title="New VPN port assigned"
+  --title="New VPN port assigned" > /dev/null 2>&1
 fi
 
 echo "Port forwarding done"

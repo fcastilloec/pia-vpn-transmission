@@ -4,7 +4,7 @@ set -e
 
 version_regex="^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$"
 flags_regex="^(-M|-m|-p|-h)$"
-_file="get_port.sh"
+_files=("get_port.sh" "transmission.sh")
 
 function print_help() {
   local -r bold='\e[1m'; local -r emph='\e[2m'; local -r reset='\e[0m'
@@ -31,7 +31,7 @@ elif (( $# > 2 || $# == 0 )); then
 fi
 
 # Read version number
-version_string=$(grep "readonly version=" "${_file}" | cut -d "=" -f 2)
+version_string=$(grep "readonly version=" "${_files[0]}" | cut -d "=" -f 2)
 IFS="." read -r -a version_array <<< "${version_string}"
 
 case "$1" in
@@ -52,4 +52,6 @@ case "$1" in
 esac
 
 # Set the new version
-sed -i "s|\(readonly version=\)\(.*\)|\1${_version}|g" "${_file}"
+for file in "${_files[@]}"; do
+  sed -i "s|\(readonly version=\)\(.*\)|\1${_version}|g" "${file}"
+done
