@@ -23,7 +23,7 @@ function check_tool() {
 }
 
 ############### VARIABLES ###############
-readonly version=1.1.0
+readonly version=1.1.1
 
 ############### CHECKS ###############
 # Check the script is running as root
@@ -38,10 +38,7 @@ piactl monitor connectionstate | while read -r status; do
     if pidof transmission-gtk > /dev/null; then
       echo "transmission-gtk is active. Stopping..."
       kill -9 "$(pidof transmission-gtk)"
-      # zenity \
-      #   --info \
-      #   --text="<span size=\"xx-large\">VPN was disconnected</span>" \
-      #   --title="Transmission was stopped" > /dev/null 2>&1
+      /home/felipe/.bin/pushbullet "VPN was disconnected" "Transmission was stopped"
     fi
   fi
 done
