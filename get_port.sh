@@ -27,7 +27,7 @@ function check_tool() {
 readonly version=1.1.0
 readonly payload_file="/opt/piavpn/etc/account.json"
 readonly transmission_settings="${_HOME:?Home directory is not known}/.config/transmission/settings.json"
-was_running=false
+# was_running=false
 
 ############### CHECKS ###############
 # Check the script is running as root
@@ -72,7 +72,7 @@ fi
 if pidof transmission-gtk > /dev/null; then
   if [[ ${DEBUG} == true ]]; then echo "transmission-gtk is active. Stopping..."; fi
   kill -9 "$(pidof transmission-gtk)"
-  was_running=true
+  # was_running=true
 fi
 
 # Modifies the Transmission settings with the new port
@@ -91,12 +91,12 @@ else
   >&2 echo "The current port is already in the rules. This is weird and should be checked."
 fi
 
-# Show window to restart Transmission
-if [[ ${was_running} == 'true' ]]; then
-  zenity \
-  --info \
-  --text="<span size=\"xx-large\">Restart Transmission</span>\n\nThe port changed happened at:\n<b>$(date)</b>" \
-  --title="New VPN port assigned" > /dev/null 2>&1
-fi
+# # Show window to restart Transmission
+# if [[ ${was_running} == 'true' ]]; then
+#   zenity \
+#   --info \
+#   --text="<span size=\"xx-large\">Restart Transmission</span>\n\nThe port changed happened at:\n<b>$(date)</b>" \
+#   --title="New VPN port assigned" > /dev/null 2>&1
+# fi
 
 echo "Port forwarding done"
