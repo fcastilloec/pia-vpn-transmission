@@ -55,6 +55,10 @@ echo "Starting port forwarding: v${version}"
 payload=$(<"${payload_file}")
 portForwardPayload="$(echo "${payload}" | jq -r '.portForwardPayload')"
 port="$(echo "${portForwardPayload}" | base64 -d | jq -r '.port')" # The payload has a base64 format
+if ! [[ ${port} =~ ^[0-9]+$ && ${port} -le 65535 && ${port} -ge 0 ]]; then
+  echo "Port is malformed: ${port}"
+  exit 1
+fi
 if [[ ${DEBUG=false} == true ]]; then echo "The port in use is ${port}"; fi
 
 # Reads the current port used on Transmission
