@@ -23,7 +23,7 @@ function check_tool() {
 }
 
 ############### VARIABLES ###############
-readonly version=1.1.1
+readonly version=2.0.0
 
 ############### CHECKS ###############
 # Check the script is running as root
