@@ -4,7 +4,7 @@ set -e
 
 version_regex="^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$"
 flags_regex="^(-M|-m|-p|-h)$"
-_files=("get_port.sh" "transmission.sh")
+_files=("get_port.sh" "start_transmission.sh" "stop_transmission.sh")
 
 function print_help() {
   local -r bold='\e[1m'; local -r emph='\e[2m'; local -r reset='\e[0m'
