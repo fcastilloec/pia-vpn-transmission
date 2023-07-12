@@ -27,7 +27,11 @@ function check_tool() {
 readonly version=2.0.0
 readonly payload_file="/opt/piavpn/etc/account.json"
 readonly transmission_settings="${_HOME:?Home directory is not known}/.config/transmission/settings.json"
+readonly retries=3
 was_running=false
+retry=1
+empty=1
+empty_retries=5
 
 ############### CHECKS ###############
 # Check the script is running as root
@@ -51,12 +55,32 @@ fi
 ##########################################
 echo "Starting port forwarding: v${version}"
 
+# check if payload file is empty
+until [[ -s ${payload_file} ]]; do
+  if [[ ${empty} -gt ${empty_retries} ]]; then
+    echo "Payload file is empty after ${empty_retries} retries"
+    exit 1
+  fi
+  (( empty++ ))
+  sleep 3 # extra time in case file is still being written to
+done
+
 # Reads the port from the payload file
-payload=$(<"${payload_file}")
-portForwardPayload="$(echo "${payload}" | jq -r '.portForwardPayload')"
-port="$(echo "${portForwardPayload}" | base64 -d | jq -r '.port')" # The payload has a base64 format
-if ! [[ ${port} =~ ^[0-9]+$ && ${port} -le 65535 && ${port} -ge 0 ]]; then
-  echo "Port is malformed: ${port}"
+while [[ ${retry} -le ${retries} ]]; do
+  payload=$(<"${payload_file}")
+  portForwardPayload="$(echo "${payload}" | jq -r '.portForwardPayload')"
+  port="$(echo "${portForwardPayload}" | base64 -d | jq -r '.port')" # The payload has a base64 format
+
+  if [[ ${port} =~ ^[0-9]+$ && ${port} -le 65535 && ${port} -ge 0 ]]; then
+    break # everything is OK, exit while loop
+  fi
+  echo "Port is malformed. Retry # ${retry}"
+  (( retry++ ))
+  sleep 3
+done
+
+if [[ ${retry} -gt ${retries} ]]; then
+  echo "Port is malformed or empty. Port: '${port}'"
   exit 1
 fi
 if [[ ${DEBUG=false} == true ]]; then echo "The port in use is ${port}"; fi
