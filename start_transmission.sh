@@ -24,7 +24,7 @@ function check_tool() {
 }
 
 ############### VARIABLES ###############
-readonly version=2.0.0
+readonly version=2.1.0
 # The next list has all the possible values, except for Connected, which is the one we want
 readonly CONNECTION_VALUES=(Disconnected Connecting Interrupted Reconnecting DisconnectingToReconnect Disconnecting)
 
