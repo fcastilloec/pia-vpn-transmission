@@ -44,4 +44,4 @@ if [[ " ${CONNECTION_VALUES[*]} " =~ " $(piactl get connectionstate) " ]]; then
 fi
 
 # We're connected, let's start transmission
-transmission-gtk "$@"
+transmission-gtk "$@" || true
