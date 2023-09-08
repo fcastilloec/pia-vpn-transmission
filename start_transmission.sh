@@ -27,9 +27,11 @@ function check_tool() {
 readonly version=2.1.0
 # The next list has all the possible values, except for Connected, which is the one we want
 readonly CONNECTION_VALUES=(Disconnected Connecting Interrupted Reconnecting DisconnectingToReconnect Disconnecting)
+readonly TRANSMISSION_WINDOW="Transmission"
 
 ############### CHECKS ###############
 check_tool piactl PIA
+check_tool wmctrl wmctrl
 
 ##########################################
 if [[ ${DEBUG:=false} == true ]]; then
@@ -43,5 +45,28 @@ if [[ " ${CONNECTION_VALUES[*]} " =~ " $(piactl get connectionstate) " ]]; then
   exit 0
 fi
 
-# We're connected, let's start transmission
-transmission-gtk "$@" || true
+# We're connected, let's start transmission minimized for tests
+transmission-gtk &
+if ! TRANSMISSION_PID=$(pidof transmission-gtk); then
+  zenity --error --text="Transmssion failed to start minimized" --title="Start Transmission"
+  exit 1
+fi
+until wmctrl -l | grep -q "felipe-desktop Transmission"; do # wait until window can be interacted with
+  sleep 0.1
+done
+wmctrl -F -r "${TRANSMISSION_WINDOW}" -b toggle,shaded # collapses it (shaded), but doesn't minimize (hidden minimize but doesn't work)
+
+# wait until Transmission remote port is open
+until lsof -Pi :9091 -sTCP:LISTEN -t > /dev/null; do
+  sleep 0.1
+done
+
+# Check if port is open. If not, we might be bypassing the VPN
+if [[ $(transmission-remote -pt) != "Port is open: Yes" ]]; then
+  zenity --error --text="Port is not open\nTransmission won't start" --title="Start Transmission"
+  kill -9 "${TRANSMISSION_PID}"
+  exit 1
+fi
+
+# Maximize Transmission
+wmctrl -F -r "${TRANSMISSION_WINDOW}" -b toggle,shaded
