@@ -28,9 +28,11 @@ readonly version=2.2.0
 # The next list has all the possible values, except for Connected, which is the one we want
 readonly CONNECTION_VALUES=(Disconnected Connecting Interrupted Reconnecting DisconnectingToReconnect Disconnecting)
 readonly TRANSMISSION_WINDOW="Transmission"
+readonly TIMEOUT=10 # in seconds
 
 ############### CHECKS ###############
 check_tool piactl PIA
+check_tool transmission-remote transmission-cli
 check_tool wmctrl wmctrl
 
 ##########################################
@@ -56,8 +58,13 @@ until wmctrl -l | grep -q "felipe-desktop Transmission"; do # wait until window 
 done
 wmctrl -F -r "${TRANSMISSION_WINDOW}" -b toggle,shaded # collapses it (shaded), but doesn't minimize (hidden minimize but doesn't work)
 
-# wait until Transmission remote port is open
-until lsof -Pi :9091 -sTCP:LISTEN -t > /dev/null; do
+# SECONDS is a bash special variable that returns the seconds since set. Prevents the following loop to run forever
+SECONDS=0
+until lsof -Pi :9091 -sTCP:LISTEN -t > /dev/null; do # wait until Transmission remote port is open
+  if [[ ${SECONDS} -ge ${TIMEOUT} ]]; then
+    zenity --error --text="Transmssion remote not enabled\nMake sure that remote access is allowed" --title="Start Transmission"
+    exit 1
+  fi
   sleep 0.1
 done
 
