@@ -24,7 +24,7 @@ function check_tool() {
 }
 
 ############### VARIABLES ###############
-readonly version=2.2.0
+readonly version=2.2.1
 readonly payload_file="/opt/piavpn/etc/account.json"
 readonly transmission_settings="${_HOME:?Home directory is not known}/.config/transmission/settings.json"
 readonly retries=3
