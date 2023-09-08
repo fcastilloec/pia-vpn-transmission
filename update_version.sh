@@ -3,7 +3,7 @@
 set -e
 
 version_regex="^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$"
-flags_regex="^(-M|-m|-p|-h)$"
+flags_regex="^(-M|-m|-p|-h|--help|--major|--minor|--path|--version|-v)$"
 _files=("get_port.sh" "start_transmission.sh" "stop_transmission.sh")
 
 function print_help() {
