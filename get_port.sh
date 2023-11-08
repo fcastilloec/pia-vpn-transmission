@@ -27,7 +27,7 @@ function check_tool() {
 readonly version=2.2.1
 readonly payload_file="/opt/piavpn/etc/account.json"
 readonly transmission_settings="${_HOME:?Home directory is not known}/.config/transmission/settings.json"
-readonly retries=3
+readonly retries=5
 was_running=false
 retry=1
 empty=1
@@ -62,7 +62,7 @@ until [[ -s ${payload_file} ]]; do
     exit 1
   fi
   (( empty++ ))
-  sleep 3 # extra time in case file is still being written to
+  sleep 5 # extra time in case file is still being written to
 done
 
 # Reads the port from the payload file
@@ -76,7 +76,7 @@ while [[ ${retry} -le ${retries} ]]; do
   fi
   echo "Port is malformed. Retry # ${retry}"
   (( retry++ ))
-  sleep 3
+  sleep 6
 done
 
 if [[ ${retry} -gt ${retries} ]]; then
