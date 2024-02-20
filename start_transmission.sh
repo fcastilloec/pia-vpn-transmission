@@ -28,6 +28,7 @@ readonly version=2.2.2
 # The next list has all the possible values, except for Connected, which is the one we want
 readonly CONNECTION_VALUES=(Disconnected Connecting Interrupted Reconnecting DisconnectingToReconnect Disconnecting)
 readonly TRANSMISSION_WINDOW="Transmission"
+readonly REMOTE_CONTROL_PORT='9091'
 readonly TIMEOUT=10 # in seconds
 
 ############### CHECKS ###############
@@ -60,7 +61,7 @@ wmctrl -F -r "${TRANSMISSION_WINDOW}" -b toggle,shaded # collapses it (shaded), 
 
 # SECONDS is a bash special variable that returns the seconds since set. Prevents the following loop to run forever
 SECONDS=0
-until lsof -Pi :9091 -sTCP:LISTEN -t > /dev/null; do # wait until Transmission remote port is open
+until lsof -Pi ":${REMOTE_CONTROL_PORT}" -sTCP:LISTEN -t > /dev/null; do # wait until Transmission remote port is open
   if [[ ${SECONDS} -ge ${TIMEOUT} ]]; then
     zenity --error --text="Transmssion remote not enabled\nMake sure that remote access is allowed" --title="Start Transmission"
     exit 1
