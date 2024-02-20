@@ -114,7 +114,7 @@ fi
 
 # Add the new firewall rule if not present
 if ! ufw status | grep -q "${port}"; then
-  ufw allow in "${port}/tcp" > /dev/null
+  ufw allow in "${port}/tcp" comment 'Transmission' > /dev/null
 else
   >&2 echo "The current port is already in the rules. This is weird and should be checked."
 fi

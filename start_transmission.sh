@@ -70,7 +70,7 @@ done
 
 # Check if port is open. If not, we might be bypassing the VPN
 if [[ $(transmission-remote -pt) != "Port is open: Yes" ]]; then
-  zenity --error --text="Port is not open\nTransmission won't start" --title="Start Transmission"
+  zenity --error --text="Port is not open\nTransmission won't start\nTry running 'systemctl start pia-port-forwarding.service'" --title="Start Transmission"
   kill -9 "${TRANSMISSION_PID}"
   exit 1
 fi
