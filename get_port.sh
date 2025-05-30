@@ -90,7 +90,7 @@ current_port=$(jq -r '."peer-port"' "${transmission_settings}")
 
 # Check if changes are needed
 if [[ ${current_port} -eq ${port} ]]; then
-  echo "Nothing to do, port is already in used"
+  echo "Nothing to do, port ${port} is already in used"
   exit 0
 fi
 
