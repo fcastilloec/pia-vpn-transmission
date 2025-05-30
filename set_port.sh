@@ -6,7 +6,7 @@ readonly root_dir="/home/felipe/workspace/containers/pia-transmission-prowlarr"
 readonly transmission_port="${root_dir}/data/pia-port/port.dat"
 
 if ! transmission-remote -l >/dev/null 2>&1; then # Checks that Transmission is running
-  >&2 echo "Transmission not running."; exit 1
+  echo "Transmission not running."; exit 0
 fi
 
 if ! [[ -f ${transmission_port} && -r ${transmission_port} ]]; then
