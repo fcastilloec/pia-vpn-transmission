@@ -2,15 +2,23 @@
 
 trap 'exit 0' SIGTERM
 
-readonly root_dir="/home/felipe/workspace/containers/pia-transmission-prowlarr"
+root_dir=$(/usr/local/bin/docker-compose ls | grep pia-transmission-prowlarr | awk '{print $3}' | xargs dirname)
+readonly root_dir
 readonly transmission_port="${root_dir}/data/pia-port/port.dat"
 
-if ! transmission-remote -l >/dev/null 2>&1; then # Checks that Transmission is running
-  echo "Transmission not running."; exit 0
+## Checks
+if [[ -z ${root_dir} ]]; then
+  >&2 echo "Docker compose project is not running"; exit 1
 fi
 
 if ! [[ -f ${transmission_port} && -r ${transmission_port} ]]; then
   >&2 echo "Port file doesn't exist or is not readable!"; exit 1
+fi
+
+sleep 5 # give some time for Transmission to start
+
+if ! transmission-remote -l >/dev/null 2>&1; then # Checks that Transmission is running
+  echo "Transmission not running."; exit 1
 fi
 
 # Reading port
