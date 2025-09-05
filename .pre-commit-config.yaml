@@ -5,6 +5,6 @@ repos:
   - id: shell-lint
     args: ['-a', '-x', '-S', 'style']
 - repo: https://github.com/commitizen-tools/commitizen
-  rev: v3.13.0
+  rev: v4.8.4
   hooks:
   - id: commitizen
