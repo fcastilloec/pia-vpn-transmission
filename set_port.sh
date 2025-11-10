@@ -11,7 +11,7 @@ config_file=$(
 
 ## Checks
 if [[ -z ${config_file} ]]; then
-  >&2 echo "Docker compose project is not running"
+  >&2 echo "Docker compose project doesn't exist"
   exit 0
 fi
 transmission_port="$(dirname "${config_file}")/data/pia-port/port.dat"
@@ -21,8 +21,6 @@ if ! [[ -f ${transmission_port} && -r ${transmission_port} ]]; then
   >&2 echo "Port file doesn't exist or is not readable!"
   exit 1
 fi
-
-sleep 5 # give some time for Transmission to start
 
 if ! transmission-remote -l > /dev/null 2>&1; then # Checks that Transmission is running
   echo "Transmission not running."
