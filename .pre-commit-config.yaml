@@ -1,10 +1,17 @@
+fail_fast: true
+
 repos:
-- repo: https://github.com/detailyang/pre-commit-shell
-  rev: v1.0.6
-  hooks:
-  - id: shell-lint
-    args: ['-a', '-x', '-S', 'style']
-- repo: https://github.com/commitizen-tools/commitizen
-  rev: v4.11.6
-  hooks:
-  - id: commitizen
+  - repo: local
+    hooks:
+      - id: shellcheck
+        priority: 0
+        name: Lint Shell
+        language: system
+        types: [shell]
+        entry: shellcheck
+        args: ['-a', '-x', '-S', 'style']
+
+  - repo: https://github.com/commitizen-tools/commitizen
+    rev: v4.11.6
+    hooks:
+    - id: commitizen
