@@ -40,4 +40,7 @@ if [[ $(transmission-remote -pt) != "Port is open: Yes" ]]; then
   exit 1
 fi
 
+# Re-announce to trackers the new port. Important for mamapi to get correct port info.
+transmission-remote -tall --reannounce
+
 exit 0
