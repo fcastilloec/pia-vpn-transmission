@@ -1,0 +1,31 @@
+# Configuration file for `prek`, a git hook framework written in Rust.
+# See https://prek.j178.dev for more information.
+#:schema https://www.schemastore.org/prek.json
+
+fail_fast = true
+
+[[repos]]
+repo = "local"
+hooks = [
+  {
+    id = "shellcheck",
+    priority = 0,
+    name = "Lint Shell",
+    language = "system",
+    types = ["shell"],
+    entry = "shellcheck",
+    args = [
+      "-a",
+      "-x",
+      "-S",
+      "style"
+    ]
+  }
+]
+
+[[repos]]
+repo = "https://github.com/commitizen-tools/commitizen"
+rev = "v4.15.0"
+hooks = [
+  { id = "commitizen" }
+]
