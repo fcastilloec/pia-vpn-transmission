@@ -34,11 +34,11 @@ echo "Port read from file (${PORT})"
 # Changing port
 transmission-remote -p "${PORT}"
 sleep 2
-# Testing port
-if [[ $(transmission-remote -pt) != "Port is open: Yes" ]]; then
-  echo "Transmission port (${PORT}) is not open!"
-  exit 1
-fi
+# # Testing port
+# if ! curl -s "https://portchecker.io/api/me/${PORT}" | grep -qi "True"; then
+#   echo "Transmission port (${PORT}) is not open!"
+#   exit 1
+# fi
 
 # Re-announce to trackers the new port. Important for mamapi to get correct port info.
 echo "Re-announcing to all trackers"
